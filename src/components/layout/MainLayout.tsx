@@ -20,7 +20,8 @@ import {
   Settings,
   Menu,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Warehouse
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -55,6 +56,7 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const navItems = [
     { icon: LayoutGrid, label: "Dashboard", to: "/" },
     { icon: Package, label: "Inventory", to: "/inventory" },
+    { icon: Warehouse, label: "Warehouse Structure", to: "/warehouse-structure" },
     { icon: ClipboardList, label: "Orders", to: "/orders" },
     { icon: Truck, label: "Shipments", to: "/shipments" },
     { icon: Settings, label: "Settings", to: "/settings" },
