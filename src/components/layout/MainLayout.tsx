@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -21,9 +21,19 @@ import {
   Menu,
   ChevronRight,
   ChevronLeft,
-  Warehouse
+  Warehouse,
+  LogOut,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface NavItemProps {
   icon: React.ElementType;
@@ -50,6 +60,8 @@ const NavItem = ({ icon: Icon, label, to, isActive }: NavItemProps) => {
 
 export const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout, isAuthenticated } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -61,6 +73,11 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
     { icon: Truck, label: "Shipments", to: "/shipments" },
     { icon: Settings, label: "Settings", to: "/settings" },
   ];
+
+  const handleLogout = () => {
+    logout();
+    navigate("/signin");
+  };
 
   return (
     <SidebarProvider>
@@ -121,9 +138,40 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
                 />
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <User className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isAuthenticated ? (
+                  <>
+                    <DropdownMenuLabel>
+                      {user?.firstName} {user?.lastName}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate("/profile")}>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate("/signin")}>
+                      Sign In
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/signup")}>
+                      Sign Up
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </header>
           <main className="flex-1 overflow-auto p-6 bg-gray-50">
             {children}
