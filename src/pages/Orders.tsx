@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
   Download,
   FileText,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 // Mock orders data
 const ordersData = [
@@ -106,9 +107,23 @@ const ordersData = [
 const OrdersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState("business");
+  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
 
-  // Filter orders based on search and status filter
-  const filteredOrders = ordersData.filter(order => {
+  useEffect(() => {
+    // Load customer orders from localStorage
+    const savedOrders = localStorage.getItem('orders');
+    if (savedOrders) {
+      try {
+        setCustomerOrders(JSON.parse(savedOrders));
+      } catch (e) {
+        console.error("Failed to parse orders from localStorage:", e);
+      }
+    }
+  }, []);
+
+  // Filter business orders based on search and status filter
+  const filteredBusinessOrders = ordersData.filter(order => {
     const matchesSearch = 
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.customer.toLowerCase().includes(searchQuery.toLowerCase());
@@ -116,6 +131,20 @@ const OrdersPage = () => {
     if (statusFilter === "all") return matchesSearch;
     return matchesSearch && order.status.toLowerCase() === statusFilter.toLowerCase();
   });
+
+  // Filter customer orders based on search and status filter
+  const filteredCustomerOrders = customerOrders.filter(order => {
+    const matchesSearch = 
+      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (statusFilter === "all") return matchesSearch;
+    return matchesSearch && order.status.toLowerCase() === statusFilter.toLowerCase();
+  });
+
+  // Get the active orders based on the current tab
+  const activeOrders = activeTab === "business" ? filteredBusinessOrders : filteredCustomerOrders;
+  const totalOrders = activeTab === "business" ? ordersData.length : customerOrders.length;
 
   return (
     <div className="space-y-6">
@@ -125,110 +154,169 @@ const OrdersPage = () => {
           Track and manage customer orders
         </p>
       </div>
-      
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-          <Input 
-            placeholder="Search by order ID or customer..." 
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="all">All Orders</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="ready for pickup">Ready for Pickup</SelectItem>
-                <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="canceled">Canceled</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          
-          <Button variant="outline">
-            <Filter className="h-4 w-4 mr-2" />
-            More Filters
-          </Button>
-          
-          <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
-            <Plus className="h-4 w-4 mr-2" />
-            New Order
-          </Button>
-        </div>
-      </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Order ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Items</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Shipment</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id} className="hover-row">
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{order.customer}</TableCell>
-                    <TableCell>{order.date}</TableCell>
-                    <TableCell className="text-right">{order.items}</TableCell>
-                    <TableCell className="text-right">{order.value}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        order.status === "Delivered" ? "bg-green-100 text-green-800" :
-                        order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
-                        order.status === "Ready for Pickup" ? "bg-purple-100 text-purple-800" :
-                        order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
-                        order.status === "Pending" ? "bg-gray-100 text-gray-800" :
-                        "bg-red-100 text-red-800"
-                      }`}>
-                        {order.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>{order.shipment}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        <FileText className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="business">Business Orders</TabsTrigger>
+          <TabsTrigger value="retail">Retail Customer Orders</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="business">
+          <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Input 
+                placeholder="Search by order ID or customer..." 
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="processing">Processing</SelectItem>
+                    <SelectItem value="ready for pickup">Ready for Pickup</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="canceled">Canceled</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              
+              <Button variant="outline">
+                <Filter className="h-4 w-4 mr-2" />
+                More Filters
+              </Button>
+              
+              <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
+                <Plus className="h-4 w-4 mr-2" />
+                New Order
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-      
-      <div className="flex justify-between">
-        <div className="text-sm text-muted-foreground">
-          Showing {filteredOrders.length} of {ordersData.length} orders
+        </TabsContent>
+        
+        <TabsContent value="retail">
+          <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Input 
+                placeholder="Search by order ID or customer..." 
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Status Filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All Orders</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="processing">Processing</SelectItem>
+                    <SelectItem value="shipped">Shipped</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="canceled">Canceled</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              
+              <Button variant="outline">
+                <Filter className="h-4 w-4 mr-2" />
+                More Filters
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Order ID</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Items</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Shipment</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeOrders.length > 0 ? (
+                    activeOrders.map((order) => (
+                      <TableRow key={order.id} className="hover-row">
+                        <TableCell className="font-medium">{order.id}</TableCell>
+                        <TableCell>{order.customer}</TableCell>
+                        <TableCell>{order.date}</TableCell>
+                        <TableCell className="text-right">{order.items}</TableCell>
+                        <TableCell className="text-right">{order.value}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            order.status === "Delivered" ? "bg-green-100 text-green-800" :
+                            order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
+                            order.status === "Ready for Pickup" ? "bg-purple-100 text-purple-800" :
+                            order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
+                            order.status === "Pending" ? "bg-gray-100 text-gray-800" :
+                            "bg-red-100 text-red-800"
+                          }`}>
+                            {order.status}
+                          </span>
+                        </TableCell>
+                        <TableCell>{order.shipment}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm">
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10">
+                        <p className="text-muted-foreground">
+                          {activeTab === "retail" ? 
+                            "No customer orders found. Orders placed through the shop will appear here." :
+                            "No orders found matching your criteria."
+                          }
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <div className="flex justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            Showing {activeOrders.length} of {totalOrders} orders
+          </div>
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
-      </div>
+      </Tabs>
     </div>
   );
 };
