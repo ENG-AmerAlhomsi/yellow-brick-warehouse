@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
