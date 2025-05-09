@@ -113,8 +113,12 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
           <header className="h-16 border-b bg-gradient-to-r from-yellow-400 via-yellow-300 to-amber-200 p-4 flex items-center justify-between shadow-md">
             <div className="flex items-center">
               <SidebarTrigger>
-                <Button variant="ghost" size="icon" className="mr-2 hover:bg-yellow-200">
-                  <Menu className="h-5 w-5" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="mr-6 hover:bg-yellow-200 hover:scale-105 transition-all duration-200 rounded-lg shadow-sm border border-yellow-300"
+                >
+                  <Menu className="h-6 w-6 text-gray-700" />
                 </Button>
               </SidebarTrigger>
               <h2 className="text-lg font-semibold text-gray-800">Warehouse Management System</h2>
