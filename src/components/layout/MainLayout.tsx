@@ -11,7 +11,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { 
-  Search, 
   User, 
   LayoutGrid, 
   Package, 
@@ -19,13 +18,10 @@ import {
   ClipboardList, 
   Settings,
   Menu,
-  ChevronRight,
-  ChevronLeft,
   Warehouse,
   LogOut,
   ShoppingCart,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/hooks/useCart";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +63,6 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, logout, isAuthenticated } = useAuth();
   const { cartItemsCount } = useCart();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const navItems = [
     { icon: LayoutGrid, label: "Dashboard", to: "/" },
@@ -112,40 +107,21 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
               />
             ))}
           </SidebarContent>
-
-          <SidebarFooter className="p-4 border-t border-gray-200">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-              {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
-              {!isCollapsed && <span className="ml-2">Collapse</span>}
-            </Button>
-          </SidebarFooter>
         </Sidebar>
 
         <div className="flex-1 flex flex-col">
-          <header className="h-16 border-b bg-wms-yellow p-4 flex items-center justify-between">
+          <header className="h-16 border-b bg-gradient-to-r from-yellow-400 via-yellow-300 to-amber-200 p-4 flex items-center justify-between shadow-md">
             <div className="flex items-center">
               <SidebarTrigger>
-                <Button variant="ghost" size="icon" className="mr-2">
+                <Button variant="ghost" size="icon" className="mr-2 hover:bg-yellow-200">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SidebarTrigger>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                <Input 
-                  placeholder="Search..." 
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
+              <h2 className="text-lg font-semibold text-gray-800">Warehouse Management System</h2>
             </div>
             <div className="flex items-center gap-4">
               <Link to="/cart" className="relative">
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-yellow-200">
                   <ShoppingCart className="h-5 w-5" />
                   {cartItemsCount > 0 && (
                     <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
@@ -156,7 +132,7 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full">
+                  <Button variant="ghost" size="icon" className="rounded-full hover:bg-yellow-200">
                     <User className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
