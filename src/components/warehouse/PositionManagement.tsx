@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,21 @@ const PositionManagement = () => {
     isEmpty: true, 
     bay: mockBays[0] 
   });
+  const [bays, setBays] = useState<Bay[]>(mockBays);
+
+  // Make positions available globally
+  useEffect(() => {
+    // This is a workaround to share data between components
+    // In a real app, this would be handled by a state management library
+    (window as any).mockPositions = positions;
+  }, [positions]);
+
+  // Get bays from window if available
+  useEffect(() => {
+    if ((window as any).mockBays) {
+      setBays((window as any).mockBays);
+    }
+  }, [(window as any).mockBays]);
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", position?: Position) => {
     setDialogOpen(true);
@@ -65,7 +80,7 @@ const PositionManagement = () => {
     if (position) {
       setCurrentPosition({ ...position });
     } else {
-      setCurrentPosition({ positionName: "", level: 1, isEmpty: true, bay: mockBays[0] });
+      setCurrentPosition({ positionName: "", level: 1, isEmpty: true, bay: bays[0] });
     }
   };
 
@@ -99,7 +114,7 @@ const PositionManagement = () => {
   };
 
   const handleBayChange = (bayId: string) => {
-    const selectedBay = mockBays.find(bay => bay.id === parseInt(bayId));
+    const selectedBay = bays.find(bay => bay.id === parseInt(bayId));
     if (selectedBay) {
       setCurrentPosition({ ...currentPosition, bay: selectedBay });
     }
@@ -218,7 +233,7 @@ const PositionManagement = () => {
                     <SelectValue placeholder="Select a bay" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockBays.map(bay => (
+                    {bays.map(bay => (
                       <SelectItem key={bay.id} value={bay.id?.toString() || ""}>
                         {bay.bayName} ({bay.row_sy.rowName}, {bay.row_sy.area.areaName})
                       </SelectItem>

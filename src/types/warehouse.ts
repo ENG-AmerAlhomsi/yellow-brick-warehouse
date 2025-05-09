@@ -19,7 +19,7 @@ export interface Bay {
 export interface Position {
   id?: number;
   positionName: string;
-  level: number; // Added level field
+  level: number;
   isEmpty: boolean;
   bay: Bay;
 }

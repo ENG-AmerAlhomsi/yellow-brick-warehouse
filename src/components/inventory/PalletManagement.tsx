@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +35,8 @@ const mockProducts: Product[] = [
   { id: 3, name: "Metal Bracket", description: "Multi-purpose metal bracket", weight: 0.2, quantityInStock: 120, unitPrice: 2.5, batchNumber: "H001", category: "Hardware", imageUrl: "/placeholder.svg" },
 ];
 
-// Mock data for positions
-const mockPositions: Position[] = [
+// Initial positions - will be updated from the global state
+const initialPositions: Position[] = [
   { id: 1, positionName: "Position 01", level: 1, isEmpty: true, bay: { id: 1, bayName: "Bay 01", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
   { id: 2, positionName: "Position 02", level: 2, isEmpty: true, bay: { id: 1, bayName: "Bay 01", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
   { id: 3, positionName: "Position 03", level: 1, isEmpty: true, bay: { id: 2, bayName: "Bay 02", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
@@ -53,7 +53,7 @@ const mockPallets: Pallet[] = [
     expiryDate: new Date('2025-01-15'),
     supplierName: "Supplier Inc.",
     status: "stored", 
-    position: mockPositions[0], 
+    position: initialPositions[0], 
     product: mockProducts[0] 
   },
   { 
@@ -65,7 +65,7 @@ const mockPallets: Pallet[] = [
     expiryDate: new Date('2024-12-10'),
     supplierName: "Box Co.",
     status: "shipping", 
-    position: mockPositions[1], 
+    position: initialPositions[1], 
     product: mockProducts[1] 
   },
 ];
@@ -75,6 +75,9 @@ export const PalletManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
+  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [positions, setPositions] = useState<Position[]>(initialPositions);
+  const [emptyPositions, setEmptyPositions] = useState<Position[]>([]);
   const [currentPallet, setCurrentPallet] = useState<Pallet>({
     palletName: "",
     quantity: 0,
@@ -83,9 +86,27 @@ export const PalletManagement = () => {
     expiryDate: new Date(),
     supplierName: "",
     status: "stored",
-    position: mockPositions[0],
+    position: initialPositions[0],
     product: mockProducts[0],
   });
+
+  // Update products list from global window object if available
+  useEffect(() => {
+    if ((window as any).mockProducts) {
+      setProducts((window as any).mockProducts);
+    }
+  }, [(window as any).mockProducts]);
+
+  // Update positions list from global window object if available
+  useEffect(() => {
+    if ((window as any).mockPositions) {
+      setPositions((window as any).mockPositions);
+      
+      // Filter positions that are empty
+      const emptyPos = ((window as any).mockPositions as Position[]).filter(pos => pos.isEmpty);
+      setEmptyPositions(emptyPos);
+    }
+  }, [(window as any).mockPositions]);
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", pallet?: Pallet) => {
     setDialogOpen(true);
@@ -103,8 +124,8 @@ export const PalletManagement = () => {
         expiryDate: new Date(),
         supplierName: "",
         status: "stored",
-        position: mockPositions[0],
-        product: mockProducts[0],
+        position: emptyPositions.length > 0 ? emptyPositions[0] : positions[0],
+        product: products[0],
       });
     }
   };
@@ -115,6 +136,16 @@ export const PalletManagement = () => {
       return;
     }
     
+    if (currentPallet.quantity <= 0) {
+      toast.error("Quantity must be greater than 0");
+      return;
+    }
+
+    if (currentPallet.quantity > currentPallet.maximumCapacity) {
+      toast.error(`Quantity exceeds maximum capacity (${currentPallet.maximumCapacity})`);
+      return;
+    }
+    
     if (editMode && currentPallet.id) {
       // Update existing pallet
       setPallets(pallets.map(pallet => 
@@ -122,9 +153,32 @@ export const PalletManagement = () => {
       ));
       toast.success("Pallet updated successfully");
     } else {
+      // Check if the selected position is already occupied
+      const positionIsOccupied = pallets.some(p => 
+        p.position.id === currentPallet.position.id && p.id !== currentPallet.id
+      );
+
+      if (positionIsOccupied) {
+        toast.error("The selected position is already occupied");
+        return;
+      }
+
       // Add new pallet
       const newId = Math.max(...pallets.map(p => p.id || 0), 0) + 1;
       setPallets([...pallets, { ...currentPallet, id: newId }]);
+      
+      // Update position status to occupied
+      const updatedPositions = positions.map(pos => 
+        pos.id === currentPallet.position.id ? { ...pos, isEmpty: false } : pos
+      );
+      setPositions(updatedPositions);
+      
+      // Update empty positions list
+      setEmptyPositions(updatedPositions.filter(pos => pos.isEmpty));
+      
+      // Update global positions list
+      (window as any).mockPositions = updatedPositions;
+      
       toast.success("Pallet added successfully");
     }
     
@@ -133,20 +187,32 @@ export const PalletManagement = () => {
 
   const handleDelete = (id: number) => {
     if (confirm("Are you sure you want to delete this pallet?")) {
+      const palletToDelete = pallets.find(pallet => pallet.id === id);
+      
+      // Free up the position when pallet is deleted
+      if (palletToDelete) {
+        const updatedPositions = positions.map(pos => 
+          pos.id === palletToDelete.position.id ? { ...pos, isEmpty: true } : pos
+        );
+        setPositions(updatedPositions);
+        setEmptyPositions(updatedPositions.filter(pos => pos.isEmpty));
+        (window as any).mockPositions = updatedPositions;
+      }
+      
       setPallets(pallets.filter(pallet => pallet.id !== id));
       toast.success("Pallet deleted successfully");
     }
   };
 
   const handleProductChange = (productId: string) => {
-    const selectedProduct = mockProducts.find(product => product.id === parseInt(productId));
+    const selectedProduct = products.find(product => product.id === parseInt(productId));
     if (selectedProduct) {
       setCurrentPallet({ ...currentPallet, product: selectedProduct });
     }
   };
 
   const handlePositionChange = (positionId: string) => {
-    const selectedPosition = mockPositions.find(position => position.id === parseInt(positionId));
+    const selectedPosition = positions.find(position => position.id === parseInt(positionId));
     if (selectedPosition) {
       setCurrentPallet({ ...currentPallet, position: selectedPosition });
     }
@@ -260,7 +326,7 @@ export const PalletManagement = () => {
                     <SelectValue placeholder="Select a product" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockProducts.map(product => (
+                    {products.map(product => (
                       <SelectItem key={product.id} value={product.id?.toString() || ""}>
                         {product.name}
                       </SelectItem>
@@ -280,6 +346,11 @@ export const PalletManagement = () => {
                   })}
                   readOnly={viewMode}
                 />
+                {currentPallet.quantity > currentPallet.maximumCapacity && !viewMode && (
+                  <p className="text-red-500 text-sm">
+                    Quantity exceeds maximum capacity
+                  </p>
+                )}
               </div>
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="maximumCapacity">Maximum Capacity</label>
@@ -363,11 +434,20 @@ export const PalletManagement = () => {
                     <SelectValue placeholder="Select a position" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockPositions.map(position => (
-                      <SelectItem key={position.id} value={position.id?.toString() || ""}>
-                        {position.positionName} (Level {position.level}, {position.bay.bayName})
-                      </SelectItem>
-                    ))}
+                    {emptyPositions.length > 0 && !editMode ? (
+                      emptyPositions.map(position => (
+                        <SelectItem key={position.id} value={position.id?.toString() || ""}>
+                          {position.positionName} (Level {position.level}, {position.bay.bayName})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      positions.map(position => (
+                        <SelectItem key={position.id} value={position.id?.toString() || ""}>
+                          {position.positionName} (Level {position.level}, {position.bay.bayName})
+                          {!position.isEmpty && position.id !== currentPallet.position.id && " - Occupied"}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

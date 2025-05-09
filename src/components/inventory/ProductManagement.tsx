@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,11 +116,23 @@ export const ProductManagement = () => {
     }
   };
 
-  // Make these mock products available to other components
-  React.useEffect(() => {
+  // Make these products available to other components
+  useEffect(() => {
     // This is a workaround to share data between components
     // In a real app, this would be handled by a state management library
     (window as any).mockProducts = products;
+    
+    // Also make products available for the shop
+    (window as any).shopProducts = products.map(product => ({
+      id: product.id,
+      name: product.name,
+      sku: `SKU-${product.id?.toString().padStart(4, '0')}`,
+      price: product.unitPrice,
+      category: product.category,
+      image: product.imageUrl,
+      description: product.description,
+      stock: product.quantityInStock
+    }));
   }, [products]);
 
   return (
