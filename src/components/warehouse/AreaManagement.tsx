@@ -21,8 +21,8 @@ import {
 import { toast } from "sonner";
 import { Area } from "@/types/warehouse";
 
-// Mock data for areas
-const mockAreas: Area[] = [
+// Create a global store for areas to share between components
+export const mockAreas: Area[] = [
   { id: 1, areaName: "Area A" },
   { id: 2, areaName: "Area B" },
   { id: 3, areaName: "Area C" },
@@ -56,14 +56,26 @@ const AreaManagement = () => {
     
     if (editMode && currentArea.id) {
       // Update existing area
-      setAreas(areas.map(area => 
+      const updatedAreas = areas.map(area => 
         area.id === currentArea.id ? { ...currentArea } : area
-      ));
+      );
+      setAreas(updatedAreas);
+      
+      // Update the global mockAreas for other components to use
+      mockAreas.splice(0, mockAreas.length);
+      updatedAreas.forEach(area => mockAreas.push(area));
+      
       toast.success("Area updated successfully");
     } else {
       // Add new area
       const newId = Math.max(...areas.map(a => a.id || 0), 0) + 1;
-      setAreas([...areas, { ...currentArea, id: newId }]);
+      const newArea = { ...currentArea, id: newId };
+      const newAreas = [...areas, newArea];
+      setAreas(newAreas);
+      
+      // Update the global mockAreas for other components to use
+      mockAreas.push(newArea);
+      
       toast.success("Area added successfully");
     }
     
@@ -72,7 +84,15 @@ const AreaManagement = () => {
 
   const handleDelete = (id: number) => {
     if (confirm("Are you sure you want to delete this area?")) {
-      setAreas(areas.filter(area => area.id !== id));
+      const filteredAreas = areas.filter(area => area.id !== id);
+      setAreas(filteredAreas);
+      
+      // Update the global mockAreas for other components to use
+      const index = mockAreas.findIndex(area => area.id === id);
+      if (index !== -1) {
+        mockAreas.splice(index, 1);
+      }
+      
       toast.success("Area deleted successfully");
     }
   };

@@ -27,14 +27,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Area, Row } from "@/types/warehouse";
-
-// Mock data for areas
-const mockAreas: Area[] = [
-  { id: 1, areaName: "Area A" },
-  { id: 2, areaName: "Area B" },
-  { id: 3, areaName: "Area C" },
-  { id: 4, areaName: "Area D" },
-];
+import { mockAreas } from "./AreaManagement";
 
 // Mock data for rows
 const mockRows: Row[] = [

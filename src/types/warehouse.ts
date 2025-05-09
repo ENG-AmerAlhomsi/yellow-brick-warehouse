@@ -19,6 +19,32 @@ export interface Bay {
 export interface Position {
   id?: number;
   positionName: string;
+  level: number; // Added level field
   isEmpty: boolean;
   bay: Bay;
+}
+
+export interface Product {
+  id?: number;
+  name: string;
+  description: string;
+  weight: number;
+  quantityInStock: number;
+  unitPrice: number;
+  batchNumber: string;
+  category: string;
+  imageUrl: string;
+}
+
+export interface Pallet {
+  id?: number;
+  palletName: string;
+  quantity: number;
+  maximumCapacity: number;
+  manufacturingDate: Date;
+  expiryDate: Date;
+  supplierName: string;
+  status: "stored" | "shipping" | "processing" | "damaged";
+  position: Position;
+  product: Product;
 }

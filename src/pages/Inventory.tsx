@@ -28,6 +28,8 @@ import {
   ArrowUpDown,
   Download,
 } from "lucide-react";
+import ProductManagement from "@/components/inventory/ProductManagement";
+import PalletManagement from "@/components/inventory/PalletManagement";
 
 // Mock inventory data
 const inventoryItems = [
@@ -141,6 +143,8 @@ const InventoryPage = () => {
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="pallets">Pallets</TabsTrigger>
           <TabsTrigger value="locations">Warehouse Structure</TabsTrigger>
           <TabsTrigger value="adjustments">Adjustments</TabsTrigger>
         </TabsList>
@@ -236,6 +240,14 @@ const InventoryPage = () => {
               Export
             </Button>
           </div>
+        </TabsContent>
+        
+        <TabsContent value="products" className="space-y-4">
+          <ProductManagement />
+        </TabsContent>
+        
+        <TabsContent value="pallets" className="space-y-4">
+          <PalletManagement />
         </TabsContent>
         
         <TabsContent value="locations" className="space-y-4">

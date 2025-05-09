@@ -39,10 +39,10 @@ const mockBays: Bay[] = [
 
 // Mock data for positions
 const mockPositions: Position[] = [
-  { id: 1, positionName: "Position 01", isEmpty: true, bay: mockBays[0] },
-  { id: 2, positionName: "Position 02", isEmpty: false, bay: mockBays[0] },
-  { id: 3, positionName: "Position 03", isEmpty: true, bay: mockBays[1] },
-  { id: 4, positionName: "Position 04", isEmpty: false, bay: mockBays[2] },
+  { id: 1, positionName: "Position 01", level: 1, isEmpty: true, bay: mockBays[0] },
+  { id: 2, positionName: "Position 02", level: 2, isEmpty: false, bay: mockBays[0] },
+  { id: 3, positionName: "Position 03", level: 1, isEmpty: true, bay: mockBays[1] },
+  { id: 4, positionName: "Position 04", level: 3, isEmpty: false, bay: mockBays[2] },
 ];
 
 const PositionManagement = () => {
@@ -52,6 +52,7 @@ const PositionManagement = () => {
   const [viewMode, setViewMode] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<Position>({ 
     positionName: "", 
+    level: 1,
     isEmpty: true, 
     bay: mockBays[0] 
   });
@@ -64,7 +65,7 @@ const PositionManagement = () => {
     if (position) {
       setCurrentPosition({ ...position });
     } else {
-      setCurrentPosition({ positionName: "", isEmpty: true, bay: mockBays[0] });
+      setCurrentPosition({ positionName: "", level: 1, isEmpty: true, bay: mockBays[0] });
     }
   };
 
@@ -123,6 +124,7 @@ const PositionManagement = () => {
             <TableRow>
               <TableHead>ID</TableHead>
               <TableHead>Name</TableHead>
+              <TableHead>Level</TableHead>
               <TableHead>Bay</TableHead>
               <TableHead>Row</TableHead>
               <TableHead>Area</TableHead>
@@ -135,6 +137,7 @@ const PositionManagement = () => {
               <TableRow key={position.id} className="hover-row">
                 <TableCell>{position.id}</TableCell>
                 <TableCell>{position.positionName}</TableCell>
+                <TableCell>{position.level}</TableCell>
                 <TableCell>{position.bay.bayName}</TableCell>
                 <TableCell>{position.bay.row_sy.rowName}</TableCell>
                 <TableCell>{position.bay.row_sy.area.areaName}</TableCell>
@@ -187,6 +190,20 @@ const PositionManagement = () => {
                   id="positionName"
                   value={currentPosition.positionName}
                   onChange={(e) => setCurrentPosition({ ...currentPosition, positionName: e.target.value })}
+                  readOnly={viewMode}
+                />
+              </div>
+              <div className="grid w-full items-center gap-1.5">
+                <label htmlFor="level">Level</label>
+                <Input
+                  id="level"
+                  type="number"
+                  min={1}
+                  value={currentPosition.level}
+                  onChange={(e) => setCurrentPosition({ 
+                    ...currentPosition, 
+                    level: parseInt(e.target.value) || 1
+                  })}
                   readOnly={viewMode}
                 />
               </div>
