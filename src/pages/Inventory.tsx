@@ -1,8 +1,8 @@
 
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ProductManagement from "@/components/inventory/ProductManagement";
-import PalletManagement from "@/components/inventory/PalletManagement";
+import { ProductManagement } from "@/components/inventory/ProductManagement";
+import { PalletManagement } from "@/components/inventory/PalletManagement";
 
 const InventoryPage = () => {
   const [currentTab, setCurrentTab] = React.useState("products");

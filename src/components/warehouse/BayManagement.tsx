@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -26,74 +27,115 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Row, Bay } from "@/types/warehouse";
-
-// Mock data for areas and rows
-const mockRows: Row[] = [
-  { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } },
-  { id: 2, rowName: "Row 02", area: { id: 1, areaName: "Area A" } },
-  { id: 3, rowName: "Row 03", area: { id: 2, areaName: "Area B" } },
-  { id: 4, rowName: "Row 04", area: { id: 3, areaName: "Area C" } },
-];
-
-// Mock data for bays
-const mockBays: Bay[] = [
-  { id: 1, bayName: "Bay 01", row_sy: mockRows[0] },
-  { id: 2, bayName: "Bay 02", row_sy: mockRows[0] },
-  { id: 3, bayName: "Bay 03", row_sy: mockRows[1] },
-  { id: 4, bayName: "Bay 04", row_sy: mockRows[2] },
-];
+import { Bay, Row } from "@/types/warehouse";
+import { bayApi, rowApi } from "@/services/api";
 
 const BayManagement = () => {
-  const [bays, setBays] = useState<Bay[]>(mockBays);
+  const [bays, setBays] = useState<Bay[]>([]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
-  const [currentBay, setCurrentBay] = useState<Bay>({ bayName: "", row_sy: mockRows[0] });
+  const [currentBay, setCurrentBay] = useState<Bay>({
+    bayName: "",
+    row_sy: { id: 0, rowName: "", area: { id: 0, areaName: "" } },
+  });
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", bay?: Bay) => {
     setDialogOpen(true);
     setEditMode(mode === "edit");
     setViewMode(mode === "view");
     
-    if (bay) {
+    if (bay && bay.row_sy) {
       setCurrentBay({ ...bay });
     } else {
-      setCurrentBay({ bayName: "", row_sy: mockRows[0] });
+      setCurrentBay({
+        bayName: "",
+        row_sy: {
+          id: rows[0]?.id || 0,
+          rowName: rows[0]?.rowName || "",
+          area: { id: rows[0]?.area?.id || 0, areaName: rows[0]?.area?.areaName || "" },
+        },
+      });
     }
   };
 
-  const handleSave = () => {
+  useEffect(() => {
+    loadBays();
+    loadRows();
+  }, []);
+
+  const loadBays = async () => {
+    try {
+      const response = await bayApi.getAll();
+      setBays(response.data);
+    } catch (error) {
+      toast.error("Failed to load bays");
+    }
+  };
+
+  const loadRows = async () => {
+    try {
+      const response = await rowApi.getAll();
+      setRows(response.data);
+      if (response.data.length > 0) {
+        setCurrentBay((prev) => ({
+          ...prev,
+          row_sy: response.data[0],
+        }));
+      }
+    } catch (error) {
+      toast.error("Failed to load rows");
+    }
+  };
+
+  const handleSave = async () => {
     if (!currentBay.bayName.trim()) {
       toast.error("Bay name is required");
       return;
     }
-    
-    if (editMode && currentBay.id) {
-      // Update existing bay
-      setBays(bays.map(bay => 
-        bay.id === currentBay.id ? { ...currentBay } : bay
-      ));
-      toast.success("Bay updated successfully");
-    } else {
-      // Add new bay
-      const newId = Math.max(...bays.map(b => b.id || 0), 0) + 1;
-      setBays([...bays, { ...currentBay, id: newId }]);
-      toast.success("Bay added successfully");
+
+    try {
+      if (!currentBay.row_sy || !currentBay.row_sy.id) {
+        toast.error("Please select a valid row");
+        return;
+      }
+
+      const payload = {
+        bayName: currentBay.bayName,
+        row_sy: {
+          id: currentBay.row_sy.id,
+        },
+      };
+
+      if (editMode && currentBay.id) {
+        await bayApi.update(currentBay.id, payload);
+        toast.success("Bay updated successfully");
+      } else {
+        await bayApi.create(payload);
+        toast.success("Bay added successfully");
+      }
+      await loadBays();
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to save bay");
     }
-    
-    setDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this bay?")) {
-      setBays(bays.filter(bay => bay.id !== id));
-      toast.success("Bay deleted successfully");
+      try {
+        await bayApi.delete(id);
+        toast.success("Bay deleted successfully");
+        loadBays();
+      } catch (error) {
+        toast.error("Failed to delete bay");
+      }
     }
   };
 
   const handleRowChange = (rowId: string) => {
-    const selectedRow = mockRows.find(row => row.id === parseInt(rowId));
+    const selectedRow = rows.find((row) => row.id === parseInt(rowId));
     if (selectedRow) {
       setCurrentBay({ ...currentBay, row_sy: selectedRow });
     }
@@ -188,7 +230,7 @@ const BayManagement = () => {
                     <SelectValue placeholder="Select a row" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockRows.map(row => (
+                    {rows.map((row) => (
                       <SelectItem key={row.id} value={row.id?.toString() || ""}>
                         {row.rowName} ({row.area.areaName})
                       </SelectItem>

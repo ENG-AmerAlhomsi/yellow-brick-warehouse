@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash, Eye } from "lucide-react";
+import { Plus, Edit, Trash, Eye, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,49 +28,51 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Bay, Position } from "@/types/warehouse";
-
-// Mock data for bays
-const mockBays: Bay[] = [
-  { id: 1, bayName: "Bay 01", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } },
-  { id: 2, bayName: "Bay 02", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } },
-  { id: 3, bayName: "Bay 03", row_sy: { id: 2, rowName: "Row 02", area: { id: 1, areaName: "Area A" } } },
-  { id: 4, bayName: "Bay 04", row_sy: { id: 3, rowName: "Row 03", area: { id: 2, areaName: "Area B" } } },
-];
-
-// Mock data for positions
-const mockPositions: Position[] = [
-  { id: 1, positionName: "Position 01", level: 1, isEmpty: true, bay: mockBays[0] },
-  { id: 2, positionName: "Position 02", level: 2, isEmpty: false, bay: mockBays[0] },
-  { id: 3, positionName: "Position 03", level: 1, isEmpty: true, bay: mockBays[1] },
-  { id: 4, positionName: "Position 04", level: 3, isEmpty: false, bay: mockBays[2] },
-];
+import { palletApi,positionApi, bayApi } from "@/services/api";
 
 const PositionManagement = () => {
-  const [positions, setPositions] = useState<Position[]>(mockPositions);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPosition, setCurrentPosition] = useState<Position>({ 
     positionName: "", 
     level: 1,
     isEmpty: true, 
-    bay: mockBays[0] 
+    bay: { id: 0, bayName: "", row_sy: { id: 0, rowName: "", area: { id: 0, areaName: "" } } }
   });
-  const [bays, setBays] = useState<Bay[]>(mockBays);
+  const [bays, setBays] = useState<Bay[]>([]);
 
-  // Make positions available globally
   useEffect(() => {
-    // This is a workaround to share data between components
-    // In a real app, this would be handled by a state management library
-    (window as any).mockPositions = positions;
-  }, [positions]);
+    loadPositions();
+    loadBays();
+  }, []);
 
-  // Get bays from window if available
-  useEffect(() => {
-    if ((window as any).mockBays) {
-      setBays((window as any).mockBays);
+  const loadPositions = async () => {
+    try {
+      const response = await positionApi.getAll();
+      setPositions(response.data);
+    } catch (error) {
+      toast.error("Failed to load positions");
     }
-  }, [(window as any).mockBays]);
+  };
+
+  const loadBays = async () => {
+    try {
+      const response = await bayApi.getAll();
+      setBays(response.data);
+      if (response.data.length > 0) {
+        setCurrentPosition((prev) => ({
+          ...prev,
+          bay: response.data[0],
+        }));
+      }
+    } catch (error) {
+      toast.error("Failed to load bays");
+    }
+  };
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", position?: Position) => {
     setDialogOpen(true);
@@ -84,32 +86,68 @@ const PositionManagement = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentPosition.positionName.trim()) {
       toast.error("Position name is required");
       return;
     }
-    
-    if (editMode && currentPosition.id) {
-      // Update existing position
-      setPositions(positions.map(position => 
-        position.id === currentPosition.id ? { ...currentPosition } : position
-      ));
-      toast.success("Position updated successfully");
-    } else {
-      // Add new position
-      const newId = Math.max(...positions.map(p => p.id || 0), 0) + 1;
-      setPositions([...positions, { ...currentPosition, id: newId }]);
-      toast.success("Position added successfully");
+
+    // Check for linked pallets when changing status from occupied to empty
+    if (editMode && currentPosition.isEmpty) {
+      try {
+        const palletsResponse = await palletApi.getAll();
+        const linkedPallet = palletsResponse.data.find(
+          pallet => pallet.position?.id === currentPosition.id
+        );
+        
+        if (linkedPallet) {
+          toast.error("Cannot mark position as empty. There is a pallet stored in this position.");
+          return;
+        }
+      } catch (error) {
+        toast.error("Failed to check for linked pallets");
+        return;
+      }
     }
-    
-    setDialogOpen(false);
+
+    try {
+      if (!currentPosition.bay || !currentPosition.bay.id) {
+        toast.error("Please select a valid bay");
+        return;
+      }
+
+      const payload = {
+        positionName: currentPosition.positionName,
+        level: currentPosition.level,
+        isEmpty: currentPosition.isEmpty,
+        bay: {
+          id: currentPosition.bay.id,
+        },
+      };
+
+      if (editMode && currentPosition.id) {
+        await positionApi.update(currentPosition.id, payload);
+        toast.success("Position updated successfully");
+      } else {
+        await positionApi.create(payload);
+        toast.success("Position added successfully");
+      }
+      await loadPositions();
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to save position");
+    }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this position?")) {
-      setPositions(positions.filter(position => position.id !== id));
-      toast.success("Position deleted successfully");
+      try {
+        await positionApi.delete(id);
+        toast.success("Position deleted successfully");
+        loadPositions();
+      } catch (error) {
+        toast.error("Failed to delete position");
+      }
     }
   };
 
@@ -133,6 +171,31 @@ const PositionManagement = () => {
         </Button>
       </div>
       
+      <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input 
+            placeholder="Search by name, bay, row or area..." 
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="empty">Empty</SelectItem>
+              <SelectItem value="occupied">Occupied</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -148,7 +211,20 @@ const PositionManagement = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {positions.map((position) => (
+            {positions
+              .filter(position => {
+                const matchesSearch = 
+                  position.positionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  position.bay.bayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  position.bay.row_sy.rowName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  position.bay.row_sy.area.areaName.toLowerCase().includes(searchQuery.toLowerCase());
+                
+                if (statusFilter === "all") return matchesSearch;
+                return matchesSearch && 
+                  ((statusFilter === "empty" && position.isEmpty) ||
+                   (statusFilter === "occupied" && !position.isEmpty));
+              })
+              .map((position) => (
               <TableRow key={position.id} className="hover-row">
                 <TableCell>{position.id}</TableCell>
                 <TableCell>{position.positionName}</TableCell>
@@ -188,6 +264,23 @@ const PositionManagement = () => {
             ))}
           </TableBody>
         </Table>
+      </div>
+      
+      <div className="flex justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {positions.filter(position => {
+            const matchesSearch = 
+              position.positionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              position.bay.bayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              position.bay.row_sy.rowName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              position.bay.row_sy.area.areaName.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            if (statusFilter === "all") return matchesSearch;
+            return matchesSearch && 
+              ((statusFilter === "empty" && position.isEmpty) ||
+               (statusFilter === "occupied" && !position.isEmpty));
+          }).length} of {positions.length} positions
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

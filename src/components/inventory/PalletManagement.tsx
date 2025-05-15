@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash, Eye } from "lucide-react";
+import { Plus, Edit, Trash, Eye, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,60 +24,23 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Pallet, Position, Product } from "@/types/warehouse";
-
-// Mock data for products
-const mockProducts: Product[] = [
-  { id: 1, name: "Standard Box", description: "Standard shipping box", weight: 0.5, quantityInStock: 1200, unitPrice: 1.99, batchNumber: "B001", category: "Packaging", imageUrl: "/placeholder.svg" },
-  { id: 2, name: "Premium Box", description: "Premium packaging solution", weight: 0.8, quantityInStock: 500, unitPrice: 3.99, batchNumber: "B002", category: "Packaging", imageUrl: "/placeholder.svg" },
-  { id: 3, name: "Metal Bracket", description: "Multi-purpose metal bracket", weight: 0.2, quantityInStock: 120, unitPrice: 2.5, batchNumber: "H001", category: "Hardware", imageUrl: "/placeholder.svg" },
-];
-
-// Initial positions - will be updated from the global state
-const initialPositions: Position[] = [
-  { id: 1, positionName: "Position 01", level: 1, isEmpty: true, bay: { id: 1, bayName: "Bay 01", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
-  { id: 2, positionName: "Position 02", level: 2, isEmpty: true, bay: { id: 1, bayName: "Bay 01", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
-  { id: 3, positionName: "Position 03", level: 1, isEmpty: true, bay: { id: 2, bayName: "Bay 02", row_sy: { id: 1, rowName: "Row 01", area: { id: 1, areaName: "Area A" } } } },
-];
-
-// Mock data for pallets
-const mockPallets: Pallet[] = [
-  { 
-    id: 1, 
-    palletName: "PLT-001", 
-    quantity: 100, 
-    maximumCapacity: 200, 
-    manufacturingDate: new Date('2023-01-15'),
-    expiryDate: new Date('2025-01-15'),
-    supplierName: "Supplier Inc.",
-    status: "stored", 
-    position: initialPositions[0], 
-    product: mockProducts[0] 
-  },
-  { 
-    id: 2, 
-    palletName: "PLT-002", 
-    quantity: 50, 
-    maximumCapacity: 100, 
-    manufacturingDate: new Date('2023-02-10'),
-    expiryDate: new Date('2024-12-10'),
-    supplierName: "Box Co.",
-    status: "shipping", 
-    position: initialPositions[1], 
-    product: mockProducts[1] 
-  },
-];
+import { productApi, palletApi, positionApi } from "@/services/api";
 
 export const PalletManagement = () => {
-  const [pallets, setPallets] = useState<Pallet[]>(mockPallets);
+  const [pallets, setPallets] = useState<Pallet[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [positions, setPositions] = useState<Position[]>(initialPositions);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [emptyPositions, setEmptyPositions] = useState<Position[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPallet, setCurrentPallet] = useState<Pallet>({
     palletName: "",
     quantity: 0,
@@ -86,35 +49,73 @@ export const PalletManagement = () => {
     expiryDate: new Date(),
     supplierName: "",
     status: "stored",
-    position: initialPositions[0],
-    product: mockProducts[0],
+    position: { id: 0, positionName: "", level: 0, bay: { id: 0, bayName: "",row_sy:null }, isEmpty: true },
+    product: { id: 0, name: "", description: "", category: "",weight:0, quantityInStock:0, unitPrice:0, batchNumber:"", imageUrl:"" }
   });
 
-  // Update products list from global window object if available
+  // Fetch pallets, products and empty positions on component mount
   useEffect(() => {
-    if ((window as any).mockProducts) {
-      setProducts((window as any).mockProducts);
-    }
-  }, [(window as any).mockProducts]);
+    setIsLoading(true);
+    const fetchData = async () => {
+      try {
+        const [palletsRes, productsRes, emptyPositionsRes, allPositionsRes] = await Promise.all([
+          palletApi.getAll(),
+          productApi.getAll(),
+          palletApi.getEmptyPositions(),
+          positionApi.getAll()
+        ]);
 
-  // Update positions list from global window object if available
-  useEffect(() => {
-    if ((window as any).mockPositions) {
-      setPositions((window as any).mockPositions);
-      
-      // Filter positions that are empty
-      const emptyPos = ((window as any).mockPositions as Position[]).filter(pos => pos.isEmpty);
-      setEmptyPositions(emptyPos);
-    }
-  }, [(window as any).mockPositions]);
+        setPallets(palletsRes.data);
+        setProducts(productsRes.data || []);
+        setEmptyPositions(emptyPositionsRes.data || []);
+        setPositions(allPositionsRes.data || []); // Set all positions for reference
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to fetch data');
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", pallet?: Pallet) => {
+    if (isLoading || !products.length) {
+      toast.error("Please wait while data is loading");
+      return;
+    }
+    
+    if (mode === "add" && emptyPositions.length === 0) {
+      toast.error("No empty positions available for storing pallets");
+      return;
+    }
     setDialogOpen(true);
     setEditMode(mode === "edit");
     setViewMode(mode === "view");
     
     if (pallet) {
-      setCurrentPallet({ ...pallet });
+      // Create a copy of the pallet to edit
+      const palletToEdit = { ...pallet };
+      
+      // Ensure we have the correct product from the products list
+      const selectedProduct = products.find(p => p.id === pallet.product.id);
+      if (selectedProduct) {
+        palletToEdit.product = selectedProduct;
+      }
+      
+      // For stored pallets, ensure we have the correct position
+      if (pallet.status === 'stored' && pallet.position) {
+        const currentPosition = positions.find(pos => pos.id === pallet.position.id);
+        if (currentPosition) {
+          palletToEdit.position = currentPosition;
+        }
+      } else {
+        // For non-stored pallets, ensure we have a default position available if status changes to stored
+        palletToEdit.position = emptyPositions.length > 0 ? emptyPositions[0] : positions[0];
+      }
+      
+      // Set the current pallet with all the correct references
+      setCurrentPallet(palletToEdit);
     } else {
       setCurrentPallet({
         palletName: "",
@@ -125,12 +126,22 @@ export const PalletManagement = () => {
         supplierName: "",
         status: "stored",
         position: emptyPositions.length > 0 ? emptyPositions[0] : positions[0],
-        product: products[0],
+        product: products.length > 0 ? products[0] : {
+          id: 0,
+          name: "",
+          description: "",
+          category: "",
+          weight: 0,
+          quantityInStock: 0,
+          unitPrice: 0,
+          batchNumber: "",
+          imageUrl: ""
+        },
       });
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentPallet.palletName.trim()) {
       toast.error("Pallet name is required");
       return;
@@ -145,82 +156,84 @@ export const PalletManagement = () => {
       toast.error(`Quantity exceeds maximum capacity (${currentPallet.maximumCapacity})`);
       return;
     }
-    
-    if (editMode && currentPallet.id) {
-      // Update existing pallet
-      setPallets(pallets.map(pallet => 
-        pallet.id === currentPallet.id ? { ...currentPallet } : pallet
-      ));
-      toast.success("Pallet updated successfully");
-    } else {
-      // Check if the selected position is already occupied
-      const positionIsOccupied = pallets.some(p => 
-        p.position.id === currentPallet.position.id && p.id !== currentPallet.id
-      );
 
-      if (positionIsOccupied) {
-        toast.error("The selected position is already occupied");
-        return;
+    if (currentPallet.status === 'stored' && (!currentPallet.position || !currentPallet.position.id)) {
+      toast.error('Position is required for stored pallets');
+      return;
+    }
+
+    try {
+      const palletData = {
+        palletName: currentPallet.palletName,
+        quantity: currentPallet.quantity,
+        maximumCapacity: currentPallet.maximumCapacity,
+        manufacturingDate: currentPallet.manufacturingDate,
+        expiryDate: currentPallet.expiryDate,
+        supplierName: currentPallet.supplierName,
+        status: currentPallet.status,
+        position: currentPallet.status === 'stored' ? { id: currentPallet.position.id } : null,
+        product: { id: currentPallet.product.id }
+      };
+
+      if (editMode && currentPallet.id) {
+        // Update existing pallet
+        await palletApi.update(currentPallet.id, palletData);
+        toast.success("Pallet updated successfully");
+      } else {
+        // Create new pallet
+        await palletApi.create(palletData);
+        toast.success("Pallet added successfully");
       }
 
-      // Add new pallet
-      const newId = Math.max(...pallets.map(p => p.id || 0), 0) + 1;
-      setPallets([...pallets, { ...currentPallet, id: newId }]);
-      
-      // Update position status to occupied
-      const updatedPositions = positions.map(pos => 
-        pos.id === currentPallet.position.id ? { ...pos, isEmpty: false } : pos
-      );
-      setPositions(updatedPositions);
-      
-      // Update empty positions list
-      setEmptyPositions(updatedPositions.filter(pos => pos.isEmpty));
-      
-      // Update global positions list
-      (window as any).mockPositions = updatedPositions;
-      
-      toast.success("Pallet added successfully");
+      // Refresh data
+      const [palletsRes, emptyPositionsRes, allPositionsRes] = await Promise.all([
+        palletApi.getAll(),
+        palletApi.getEmptyPositions(),
+        positionApi.getAll()
+      ]);
+
+      setPallets(palletsRes.data);
+      setEmptyPositions(emptyPositionsRes.data);
+      setPositions(allPositionsRes.data); // Update all positions to ensure we have the complete list
+
+      setDialogOpen(false);
+    } catch (error) {
+      console.error('Error saving pallet:', error);
+      toast.error('Failed to save pallet');
     }
-    
-    setDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this pallet?")) {
-      const palletToDelete = pallets.find(pallet => pallet.id === id);
-      
-      // Free up the position when pallet is deleted
-      if (palletToDelete) {
-        const updatedPositions = positions.map(pos => 
-          pos.id === palletToDelete.position.id ? { ...pos, isEmpty: true } : pos
-        );
-        setPositions(updatedPositions);
-        setEmptyPositions(updatedPositions.filter(pos => pos.isEmpty));
-        (window as any).mockPositions = updatedPositions;
+      try {
+        await palletApi.delete(id);
+        toast.success("Pallet deleted successfully");
+        
+        // Refresh data
+        const [palletsRes, emptyPositionsRes] = await Promise.all([
+          palletApi.getAll(),
+          palletApi.getEmptyPositions()
+        ]);
+        
+        setPallets(palletsRes.data);
+        setEmptyPositions(emptyPositionsRes.data);
+      } catch (error) {
+        console.error('Error deleting pallet:', error);
+        toast.error('Failed to delete pallet');
       }
-      
-      setPallets(pallets.filter(pallet => pallet.id !== id));
-      toast.success("Pallet deleted successfully");
     }
   };
 
-  const handleProductChange = (productId: string) => {
-    const selectedProduct = products.find(product => product.id === parseInt(productId));
-    if (selectedProduct) {
-      setCurrentPallet({ ...currentPallet, product: selectedProduct });
-    }
-  };
-
-  const handlePositionChange = (positionId: string) => {
-    const selectedPosition = positions.find(position => position.id === parseInt(positionId));
-    if (selectedPosition) {
-      setCurrentPallet({ ...currentPallet, position: selectedPosition });
-    }
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toISOString().split('T')[0];
-  };
+  // Filter pallets based on search and status filter
+  const filteredPallets = pallets.filter(pallet => {
+    const matchesSearch = 
+      (pallet.palletName && pallet.palletName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (pallet.supplierName && pallet.supplierName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (pallet.product && pallet.product.name && pallet.product.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    if (statusFilter === "all") return matchesSearch;
+    return matchesSearch && pallet.status === statusFilter;
+  });
 
   return (
     <div>
@@ -235,29 +248,57 @@ export const PalletManagement = () => {
         </Button>
       </div>
       
+      <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input 
+            placeholder="Search by name, supplier or product..." 
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="stored">Stored</SelectItem>
+                <SelectItem value="shipping">Shipping</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="damaged">Damaged</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          
+
+        </div>
+      </div>
+      
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead>Pallet Name</TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Quantity</TableHead>
-              <TableHead>Max Capacity</TableHead>
-              <TableHead>Position</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Position</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pallets.map((pallet) => (
+            {filteredPallets.map((pallet) => (
               <TableRow key={pallet.id} className="hover-row">
                 <TableCell>{pallet.id}</TableCell>
                 <TableCell>{pallet.palletName}</TableCell>
-                <TableCell>{pallet.product.name}</TableCell>
-                <TableCell>{pallet.quantity}</TableCell>
-                <TableCell>{pallet.maximumCapacity}</TableCell>
-                <TableCell>{`${pallet.position.positionName} (Level ${pallet.position.level})`}</TableCell>
+                <TableCell>{pallet.product?.name}</TableCell>
+                <TableCell>{pallet.quantity} / {pallet.maximumCapacity}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs ${
                     pallet.status === "stored" ? "bg-green-100 text-green-800" :
@@ -267,6 +308,11 @@ export const PalletManagement = () => {
                   }`}>
                     {pallet.status.charAt(0).toUpperCase() + pallet.status.slice(1)}
                   </span>
+                </TableCell>
+                <TableCell>
+                  {pallet.status === "stored" && pallet.position ? 
+                    `${pallet.position.bay?.bayName}-${pallet.position.level}-${pallet.position.positionName}` : 
+                    "N/A"}
                 </TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button 
@@ -296,6 +342,12 @@ export const PalletManagement = () => {
           </TableBody>
         </Table>
       </div>
+      
+      <div className="flex justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredPallets.length} of {pallets.length} pallets
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -317,16 +369,21 @@ export const PalletManagement = () => {
               </div>
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="product">Product</label>
-                <Select 
+                <Select
+                  value={currentPallet.product?.id?.toString() || ""}
+                  onValueChange={(value) => {
+                    const selectedProduct = products.find(p => p.id === parseInt(value));
+                    if (selectedProduct) {
+                      setCurrentPallet({ ...currentPallet, product: selectedProduct });
+                    }
+                  }}
                   disabled={viewMode}
-                  value={currentPallet.product.id?.toString()}
-                  onValueChange={handleProductChange}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a product" />
+                    <SelectValue placeholder="Select product" />
                   </SelectTrigger>
                   <SelectContent>
-                    {products.map(product => (
+                    {products.map((product) => (
                       <SelectItem key={product.id} value={product.id?.toString() || ""}>
                         {product.name}
                       </SelectItem>
@@ -335,45 +392,39 @@ export const PalletManagement = () => {
                 </Select>
               </div>
               <div className="grid w-full items-center gap-1.5">
-                <label htmlFor="quantity">Quantity</label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  value={currentPallet.quantity}
-                  onChange={(e) => setCurrentPallet({ 
-                    ...currentPallet, 
-                    quantity: parseInt(e.target.value) || 0
-                  })}
-                  readOnly={viewMode}
-                />
-                {currentPallet.quantity > currentPallet.maximumCapacity && !viewMode && (
-                  <p className="text-red-500 text-sm">
-                    Quantity exceeds maximum capacity
-                  </p>
-                )}
-              </div>
-              <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="maximumCapacity">Maximum Capacity</label>
                 <Input
                   id="maximumCapacity"
                   type="number"
                   value={currentPallet.maximumCapacity}
-                  onChange={(e) => setCurrentPallet({ 
-                    ...currentPallet, 
-                    maximumCapacity: parseInt(e.target.value) || 0
-                  })}
+                  onChange={(e) => setCurrentPallet({ ...currentPallet, maximumCapacity: parseInt(e.target.value) })}
                   readOnly={viewMode}
                 />
+              </div>
+              <div className="grid w-full items-center gap-1.5">
+                <label htmlFor="quantity">Quantity</label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={currentPallet.quantity}
+                  onChange={(e) => setCurrentPallet({ ...currentPallet, quantity: parseInt(e.target.value) })}
+                  readOnly={viewMode}
+                />
+                {currentPallet.quantity > currentPallet.maximumCapacity && (
+                  <p className="text-xs text-red-500">
+                    Quantity exceeds maximum capacity
+                  </p>
+                )}
               </div>
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="manufacturingDate">Manufacturing Date</label>
                 <Input
                   id="manufacturingDate"
                   type="date"
-                  value={formatDate(currentPallet.manufacturingDate)}
+                  value={formatDateForInput(currentPallet.manufacturingDate)}
                   onChange={(e) => setCurrentPallet({ 
                     ...currentPallet, 
-                    manufacturingDate: new Date(e.target.value)
+                    manufacturingDate: new Date(e.target.value) 
                   })}
                   readOnly={viewMode}
                 />
@@ -383,10 +434,10 @@ export const PalletManagement = () => {
                 <Input
                   id="expiryDate"
                   type="date"
-                  value={formatDate(currentPallet.expiryDate)}
+                  value={formatDateForInput(currentPallet.expiryDate)}
                   onChange={(e) => setCurrentPallet({ 
                     ...currentPallet, 
-                    expiryDate: new Date(e.target.value)
+                    expiryDate: new Date(e.target.value) 
                   })}
                   readOnly={viewMode}
                 />
@@ -396,21 +447,18 @@ export const PalletManagement = () => {
                 <Input
                   id="supplierName"
                   value={currentPallet.supplierName}
-                  onChange={(e) => setCurrentPallet({ 
-                    ...currentPallet, 
-                    supplierName: e.target.value
-                  })}
+                  onChange={(e) => setCurrentPallet({ ...currentPallet, supplierName: e.target.value })}
                   readOnly={viewMode}
                 />
               </div>
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="status">Status</label>
-                <Select 
-                  disabled={viewMode}
+                <Select
                   value={currentPallet.status}
-                  onValueChange={(value: "stored" | "shipping" | "processing" | "damaged") => 
-                    setCurrentPallet({ ...currentPallet, status: value })
-                  }
+                  onValueChange={(value: "stored" | "shipping" | "processing" | "damaged") => {
+                    setCurrentPallet({ ...currentPallet, status: value });
+                  }}
+                  disabled={viewMode}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
@@ -423,43 +471,62 @@ export const PalletManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid w-full items-center gap-1.5">
-                <label htmlFor="position">Position</label>
-                <Select 
-                  disabled={viewMode}
-                  value={currentPallet.position.id?.toString()}
-                  onValueChange={handlePositionChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {emptyPositions.length > 0 && !editMode ? (
-                      emptyPositions.map(position => (
-                        <SelectItem key={position.id} value={position.id?.toString() || ""}>
-                          {position.positionName} (Level {position.level}, {position.bay.bayName})
-                        </SelectItem>
-                      ))
-                    ) : (
-                      positions.map(position => (
-                        <SelectItem key={position.id} value={position.id?.toString() || ""}>
-                          {position.positionName} (Level {position.level}, {position.bay.bayName})
-                          {!position.isEmpty && position.id !== currentPallet.position.id && " - Occupied"}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Position selection is only shown when status is 'stored' */}
+              {currentPallet.status === 'stored' && (
+                <div className="grid w-full items-center gap-1.5">
+                  <label htmlFor="position">Position</label>
+                  {viewMode ? (
+                    <Input
+                      id="position"
+                      value={currentPallet.position ? 
+                        `${currentPallet.position.bay?.bayName}-${currentPallet.position.level}-${currentPallet.position.positionName}` : 
+                        "N/A"}
+                      readOnly
+                    />
+                  ) : (
+                    <Select
+                      value={currentPallet.position?.id?.toString() || ""}
+                      onValueChange={(value) => {
+                        const selectedPosition = [...emptyPositions, ...(currentPallet.id ? [currentPallet.position] : [])]
+                          .find(p => p.id === parseInt(value));
+                        if (selectedPosition) {
+                          setCurrentPallet({ ...currentPallet, position: selectedPosition });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select position" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Include current position and empty positions */}
+                        {[...(currentPallet.id ? [currentPallet.position] : []), ...emptyPositions]
+                          .filter((pos, index, self) => 
+                            pos.id && self.findIndex(p => p.id === pos.id) === index
+                          )
+                          .map((position) => (
+                            <SelectItem key={position.id} value={position.id?.toString() || ""}>
+                              {position.bay?.bayName}-{position.level}-{position.positionName}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+              {/* Show a note when status is not 'stored' */}
+              {currentPallet.status !== 'stored' && !viewMode && (
+                <div className="grid w-full items-center gap-1.5">
+                  <p className="text-sm text-muted-foreground">
+                    Position will be assigned when status is set to 'Stored'
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             {!viewMode && (
-              <Button
-                className="bg-wms-yellow text-black hover:bg-wms-yellow-dark"
-                onClick={handleSave}
-              >
-                Save
+              <Button onClick={handleSave} className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
+                {editMode ? "Update Pallet" : "Add Pallet"}
               </Button>
             )}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -472,4 +539,14 @@ export const PalletManagement = () => {
   );
 };
 
-export default PalletManagement;
+
+const formatDateForInput = (date: Date | string | undefined) => {
+  if (!date) return "";
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "";
+    return d.toISOString().split('T')[0];
+  } catch {
+    return "";
+  }
+};

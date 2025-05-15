@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,17 +20,29 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Area } from "@/types/warehouse";
-
-// Create a global store for areas to share between components
-export const mockAreas: Area[] = [
-  { id: 1, areaName: "Area A" },
-  { id: 2, areaName: "Area B" },
-  { id: 3, areaName: "Area C" },
-  { id: 4, areaName: "Area D" },
-];
+import { areaApi } from "@/services/api";
 
 const AreaManagement = () => {
-  const [areas, setAreas] = useState<Area[]>(mockAreas);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Fetch areas on component mount
+  useEffect(() => {
+    fetchAreas();
+  }, []);
+
+  const fetchAreas = async () => {
+    try {
+      setLoading(true);
+      const response = await areaApi.getAll();
+      setAreas(response.data);
+    } catch (error) {
+      toast.error("Failed to fetch areas");
+      console.error("Error fetching areas:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
@@ -48,52 +60,43 @@ const AreaManagement = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentArea.areaName.trim()) {
       toast.error("Area name is required");
       return;
     }
     
-    if (editMode && currentArea.id) {
-      // Update existing area
-      const updatedAreas = areas.map(area => 
-        area.id === currentArea.id ? { ...currentArea } : area
-      );
-      setAreas(updatedAreas);
-      
-      // Update the global mockAreas for other components to use
-      mockAreas.splice(0, mockAreas.length);
-      updatedAreas.forEach(area => mockAreas.push(area));
-      
-      toast.success("Area updated successfully");
-    } else {
-      // Add new area
-      const newId = Math.max(...areas.map(a => a.id || 0), 0) + 1;
-      const newArea = { ...currentArea, id: newId };
-      const newAreas = [...areas, newArea];
-      setAreas(newAreas);
-      
-      // Update the global mockAreas for other components to use
-      mockAreas.push(newArea);
-      
-      toast.success("Area added successfully");
-    }
-    
-    setDialogOpen(false);
-  };
-
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this area?")) {
-      const filteredAreas = areas.filter(area => area.id !== id);
-      setAreas(filteredAreas);
-      
-      // Update the global mockAreas for other components to use
-      const index = mockAreas.findIndex(area => area.id === id);
-      if (index !== -1) {
-        mockAreas.splice(index, 1);
+    try {
+      if (editMode && currentArea.id) {
+        // Update existing area
+        await areaApi.update(currentArea.id, { areaName: currentArea.areaName });
+        toast.success("Area updated successfully");
+      } else {
+        // Add new area
+        await areaApi.create({ areaName: currentArea.areaName });
+        toast.success("Area added successfully");
       }
       
-      toast.success("Area deleted successfully");
+      // Refresh the areas list
+      await fetchAreas();
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error(editMode ? "Failed to update area" : "Failed to create area");
+      console.error("Error saving area:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (confirm("Are you sure you want to delete this area?")) {
+      try {
+        await areaApi.delete(id);
+        toast.success("Area deleted successfully");
+        // Refresh the areas list
+        await fetchAreas();
+      } catch (error) {
+        toast.error("Failed to delete area");
+        console.error("Error deleting area:", error);
+      }
     }
   };
 

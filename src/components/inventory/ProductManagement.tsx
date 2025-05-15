@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash, Eye } from "lucide-react";
+import React, { useState } from "react";
+import { Plus, Edit, Trash, Eye, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,16 +25,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Product } from "@/types/warehouse";
-
-// Mock data for products
-const mockProducts: Product[] = [
-  { id: 1, name: "Standard Box", description: "Standard shipping box", weight: 0.5, quantityInStock: 1200, unitPrice: 1.99, batchNumber: "B001", category: "Packaging", imageUrl: "/placeholder.svg" },
-  { id: 2, name: "Premium Box", description: "Premium packaging solution", weight: 0.8, quantityInStock: 500, unitPrice: 3.99, batchNumber: "B002", category: "Packaging", imageUrl: "/placeholder.svg" },
-  { id: 3, name: "Metal Bracket", description: "Multi-purpose metal bracket", weight: 0.2, quantityInStock: 120, unitPrice: 2.5, batchNumber: "H001", category: "Hardware", imageUrl: "/placeholder.svg" },
-];
+import { productApi } from "@/services/api";
+import { useProducts } from "@/contexts/ProductContext";
 
 // Product categories
 const productCategories = [
@@ -51,10 +47,12 @@ const productCategories = [
 ];
 
 export const ProductManagement = () => {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const { products, refreshProducts, loading, error } = useProducts();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [currentProduct, setCurrentProduct] = useState<Product>({
     name: "",
     description: "",
@@ -87,53 +85,48 @@ export const ProductManagement = () => {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentProduct.name.trim()) {
       toast.error("Product name is required");
       return;
     }
     
-    if (editMode && currentProduct.id) {
-      // Update existing product
-      setProducts(products.map(product => 
-        product.id === currentProduct.id ? { ...currentProduct } : product
-      ));
-      toast.success("Product updated successfully");
-    } else {
-      // Add new product
-      const newId = Math.max(...products.map(p => p.id || 0), 0) + 1;
-      setProducts([...products, { ...currentProduct, id: newId }]);
-      toast.success("Product added successfully");
+    try {
+      if (editMode && currentProduct.id) {
+        await productApi.update(currentProduct.id, currentProduct);
+        toast.success("Product updated successfully");
+      } else {
+        await productApi.create(currentProduct);
+        toast.success("Product added successfully");
+      }
+      await refreshProducts();
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to save product");
     }
-    
-    setDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      setProducts(products.filter(product => product.id !== id));
-      toast.success("Product deleted successfully");
+      try {
+        await productApi.delete(id);
+        toast.success("Product deleted successfully");
+        await refreshProducts();
+      } catch (error) {
+        toast.error("Failed to delete product");
+      }
     }
   };
 
-  // Make these products available to other components
-  useEffect(() => {
-    // This is a workaround to share data between components
-    // In a real app, this would be handled by a state management library
-    (window as any).mockProducts = products;
+  // Filter products based on search and category filter
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = 
+      (product.name && product.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (product.batchNumber && product.batchNumber.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // Also make products available for the shop
-    (window as any).shopProducts = products.map(product => ({
-      id: product.id,
-      name: product.name,
-      sku: `SKU-${product.id?.toString().padStart(4, '0')}`,
-      price: product.unitPrice,
-      category: product.category,
-      image: product.imageUrl,
-      description: product.description,
-      stock: product.quantityInStock
-    }));
-  }, [products]);
+    if (categoryFilter === "all") return matchesSearch;
+    return matchesSearch && product.category === categoryFilter;
+  });
 
   return (
     <div>
@@ -148,11 +141,42 @@ export const ProductManagement = () => {
         </Button>
       </div>
       
+      <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input 
+            placeholder="Search by name or batch number..." 
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Category Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">All Categories</SelectItem>
+                {productCategories.map(category => (
+                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          
+
+        </div>
+      </div>
+      
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
+              <TableHead>SKU</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Stock</TableHead>
@@ -162,9 +186,10 @@ export const ProductManagement = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <TableRow key={product.id} className="hover-row">
                 <TableCell>{product.id}</TableCell>
+                <TableCell>{product.batchNumber}</TableCell>
                 <TableCell>{product.name}</TableCell>
                 <TableCell>{product.category}</TableCell>
                 <TableCell>{product.quantityInStock}</TableCell>
@@ -198,6 +223,12 @@ export const ProductManagement = () => {
           </TableBody>
         </Table>
       </div>
+      
+      <div className="flex justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {filteredProducts.length} of {products.length} products
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -219,10 +250,10 @@ export const ProductManagement = () => {
               </div>
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="category">Category</label>
-                <Select 
-                  disabled={viewMode}
+                <Select
                   value={currentProduct.category}
                   onValueChange={(value) => setCurrentProduct({ ...currentProduct, category: value })}
+                  disabled={viewMode}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -243,7 +274,6 @@ export const ProductManagement = () => {
                   value={currentProduct.description}
                   onChange={(e) => setCurrentProduct({ ...currentProduct, description: e.target.value })}
                   readOnly={viewMode}
-                  rows={3}
                 />
               </div>
               <div className="grid w-full items-center gap-1.5">
@@ -251,12 +281,8 @@ export const ProductManagement = () => {
                 <Input
                   id="weight"
                   type="number"
-                  step="0.01"
                   value={currentProduct.weight}
-                  onChange={(e) => setCurrentProduct({ 
-                    ...currentProduct, 
-                    weight: parseFloat(e.target.value) || 0
-                  })}
+                  onChange={(e) => setCurrentProduct({ ...currentProduct, weight: parseFloat(e.target.value) })}
                   readOnly={viewMode}
                 />
               </div>
@@ -266,10 +292,7 @@ export const ProductManagement = () => {
                   id="quantityInStock"
                   type="number"
                   value={currentProduct.quantityInStock}
-                  onChange={(e) => setCurrentProduct({ 
-                    ...currentProduct, 
-                    quantityInStock: parseInt(e.target.value) || 0
-                  })}
+                  onChange={(e) => setCurrentProduct({ ...currentProduct, quantityInStock: parseInt(e.target.value) })}
                   readOnly={viewMode}
                 />
               </div>
@@ -280,10 +303,7 @@ export const ProductManagement = () => {
                   type="number"
                   step="0.01"
                   value={currentProduct.unitPrice}
-                  onChange={(e) => setCurrentProduct({ 
-                    ...currentProduct, 
-                    unitPrice: parseFloat(e.target.value) || 0
-                  })}
+                  onChange={(e) => setCurrentProduct({ ...currentProduct, unitPrice: parseFloat(e.target.value) })}
                   readOnly={viewMode}
                 />
               </div>
@@ -292,10 +312,7 @@ export const ProductManagement = () => {
                 <Input
                   id="batchNumber"
                   value={currentProduct.batchNumber}
-                  onChange={(e) => setCurrentProduct({ 
-                    ...currentProduct, 
-                    batchNumber: e.target.value
-                  })}
+                  onChange={(e) => setCurrentProduct({ ...currentProduct, batchNumber: e.target.value })}
                   readOnly={viewMode}
                 />
               </div>
@@ -304,19 +321,16 @@ export const ProductManagement = () => {
                 <Input
                   id="imageUrl"
                   value={currentProduct.imageUrl}
-                  onChange={(e) => setCurrentProduct({ 
-                    ...currentProduct, 
-                    imageUrl: e.target.value
-                  })}
+                  onChange={(e) => setCurrentProduct({ ...currentProduct, imageUrl: e.target.value })}
                   readOnly={viewMode}
                 />
               </div>
               {viewMode && (
                 <div className="col-span-2">
-                  <img 
-                    src={currentProduct.imageUrl} 
+                  <img
+                    src={currentProduct.imageUrl || "/placeholder.svg"}
                     alt={currentProduct.name}
-                    className="w-32 h-32 object-contain mx-auto border rounded"
+                    className="w-full h-48 object-contain border rounded-md"
                   />
                 </div>
               )}
@@ -324,11 +338,8 @@ export const ProductManagement = () => {
           </div>
           <DialogFooter>
             {!viewMode && (
-              <Button
-                className="bg-wms-yellow text-black hover:bg-wms-yellow-dark"
-                onClick={handleSave}
-              >
-                Save
+              <Button onClick={handleSave} className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
+                {editMode ? "Update Product" : "Add Product"}
               </Button>
             )}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -340,5 +351,3 @@ export const ProductManagement = () => {
     </div>
   );
 };
-
-export default ProductManagement;

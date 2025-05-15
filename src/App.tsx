@@ -18,6 +18,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import UserProfile from "./pages/UserProfile";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CartProvider } from "./hooks/useCart";
+import { ProductProvider } from "./contexts/ProductContext";
 import ShopPage from "./pages/Shop";
 import CartPage from "./pages/Cart";
 import Checkout from "./pages/Checkout";
@@ -33,7 +34,8 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <CartProvider>
+          <ProductProvider>
+            <CartProvider>
             <BrowserRouter>
               <Routes>
                 {/* Auth routes */}
@@ -60,7 +62,8 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
-          </CartProvider>
+            </CartProvider>
+          </ProductProvider>
         </AuthProvider>
       </TooltipProvider>
     </SidebarProvider>

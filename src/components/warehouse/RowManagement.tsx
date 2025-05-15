@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -27,66 +28,104 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Area, Row } from "@/types/warehouse";
-import { mockAreas } from "./AreaManagement";
-
-// Mock data for rows
-const mockRows: Row[] = [
-  { id: 1, rowName: "Row 01", area: mockAreas[0] },
-  { id: 2, rowName: "Row 02", area: mockAreas[0] },
-  { id: 3, rowName: "Row 03", area: mockAreas[1] },
-  { id: 4, rowName: "Row 04", area: mockAreas[2] },
-];
+import { rowApi, areaApi } from "@/services/api";
 
 const RowManagement = () => {
-  const [rows, setRows] = useState<Row[]>(mockRows);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
-  const [currentRow, setCurrentRow] = useState<Row>({ rowName: "", area: mockAreas[0] });
+  const [currentRow, setCurrentRow] = useState<Row>({ rowName: "", area: { id: 0, areaName: "" } });
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", row?: Row) => {
     setDialogOpen(true);
     setEditMode(mode === "edit");
     setViewMode(mode === "view");
     
-    if (row) {
+    if (row && row.area) {
       setCurrentRow({ ...row });
     } else {
-      setCurrentRow({ rowName: "", area: mockAreas[0] });
+      setCurrentRow({ rowName: "", area: { id: areas[0]?.id || 0, areaName: areas[0]?.areaName || "" } });
     }
   };
 
-  const handleSave = () => {
+  useEffect(() => {
+    loadRows();
+    loadAreas();
+  }, []);
+
+  const loadRows = async () => {
+    try {
+      const response = await rowApi.getAll();
+      setRows(response.data);
+    } catch (error) {
+      toast.error("Failed to load rows");
+    }
+  };
+
+  const loadAreas = async () => {
+    try {
+      const response = await areaApi.getAll();
+      setAreas(response.data);
+      if (response.data.length > 0) {
+        setCurrentRow(prev => ({ ...prev, area: response.data[0] }));
+      }
+    } catch (error) {
+      toast.error("Failed to load areas");
+    }
+  };
+
+  const handleSave = async () => {
     if (!currentRow.rowName.trim()) {
       toast.error("Row name is required");
       return;
     }
     
-    if (editMode && currentRow.id) {
-      // Update existing row
-      setRows(rows.map(row => 
-        row.id === currentRow.id ? { ...currentRow } : row
-      ));
-      toast.success("Row updated successfully");
-    } else {
-      // Add new row
-      const newId = Math.max(...rows.map(r => r.id || 0), 0) + 1;
-      setRows([...rows, { ...currentRow, id: newId }]);
-      toast.success("Row added successfully");
+    try {
+      // Ensure we have a valid area ID
+      if (!currentRow.area || !currentRow.area.id) {
+        toast.error("Please select a valid area");
+        return;
+      }
+
+      const payload = {
+           rowName: currentRow.rowName,
+           area: {
+             id: currentRow.area.id
+           }
+         };
+
+      if (editMode && currentRow.id) {
+        // Update existing row
+        await rowApi.update(currentRow.id, payload);
+        toast.success("Row updated successfully");
+      } else {
+        // Add new row
+        await rowApi.create(payload);
+        toast.success("Row added successfully");
+      }
+      await loadRows();
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to save row");
     }
-    
-    setDialogOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm("Are you sure you want to delete this row?")) {
-      setRows(rows.filter(row => row.id !== id));
-      toast.success("Row deleted successfully");
+      try {
+        await rowApi.delete(id);
+        toast.success("Row deleted successfully");
+        loadRows();
+      } catch (error) {
+        toast.error("Failed to delete row");
+      }
     }
   };
 
   const handleAreaChange = (areaId: string) => {
-    const selectedArea = mockAreas.find(area => area.id === parseInt(areaId));
+    const selectedArea = areas.find(area => area.id === parseInt(areaId));
     if (selectedArea) {
       setCurrentRow({ ...currentRow, area: selectedArea });
     }
@@ -120,7 +159,7 @@ const RowManagement = () => {
               <TableRow key={row.id} className="hover-row">
                 <TableCell>{row.id}</TableCell>
                 <TableCell>{row.rowName}</TableCell>
-                <TableCell>{row.area.areaName}</TableCell>
+                <TableCell>{row.area?.areaName || "No Area Assigned"}</TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button 
                     variant="ghost" 
@@ -156,6 +195,9 @@ const RowManagement = () => {
             <DialogTitle>
               {editMode ? "Edit Row" : viewMode ? "View Row" : "Add Row"}
             </DialogTitle>
+            <DialogDescription>
+              {editMode ? "Update the row details" : viewMode ? "View row information" : "Create a new row in the warehouse"}
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-4">
@@ -179,7 +221,7 @@ const RowManagement = () => {
                     <SelectValue placeholder="Select an area" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockAreas.map(area => (
+                    {areas.map(area => (
                       <SelectItem key={area.id} value={area.id?.toString() || ""}>
                         {area.areaName}
                       </SelectItem>
