@@ -1,7 +1,7 @@
 import Keycloak from 'keycloak-js';
 
 export const keycloakConfig = {
-  url: 'http://localhost:8082',
+  url: 'http://localhost:8081',
   realm: 'amer-dev',
   clientId: 'WareHouse-frontend',
 };

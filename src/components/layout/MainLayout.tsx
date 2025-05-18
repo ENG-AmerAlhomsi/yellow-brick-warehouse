@@ -1,11 +1,9 @@
-
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarProvider,
   SidebarTrigger,
@@ -57,6 +55,25 @@ const NavItem = ({ icon: Icon, label, to, isActive }: NavItemProps) => {
   );
 };
 
+// Helper functions for role checking
+const hasRole = (user: any, role: string): boolean => {
+  if (!user?.roles) return false;
+  
+  // Case-insensitive check
+  return user.roles.some((r: string) => 
+    r.toLowerCase() === role.toLowerCase() || 
+    r.toLowerCase().includes(role.toLowerCase())
+  );
+};
+
+const hasAnyRole = (user: any, roles: string[]): boolean => {
+  return roles.some(role => hasRole(user, role));
+};
+
+const isAdmin = (user: any): boolean => {
+  return hasRole(user, 'admin');
+};
+
 export const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,15 +81,80 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
   const { cartItemsCount } = useCart();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navItems = [
-    { icon: LayoutGrid, label: "Dashboard", to: "/" },
-    { icon: Package, label: "Inventory", to: "/inventory" },
-    { icon: Warehouse, label: "Warehouse Structure", to: "/warehouse-structure" },
-    { icon: ClipboardList, label: "Orders", to: "/orders" },
-    { icon: Truck, label: "Shipments", to: "/shipments" },
-    { icon: ShoppingCart, label: "Shop", to: "/shop" },
-    { icon: Settings, label: "Settings", to: "/settings" },
+  // Define all possible navigation items
+  const allNavItems = [
+    { 
+      icon: LayoutGrid, 
+      label: "Dashboard", 
+      to: "/",
+      // Dashboard is visible to admins and employees
+      roles: ['admin', 'warehouse manager', 'Supply Manager', 'General Manager', 
+               ]
+    },
+    { 
+      icon: Package, 
+      label: "Inventory", 
+      to: "/inventory",
+      // Inventory is visible to admins and inventory-related roles
+      roles: ['admin', 'warehouse manager', 'Supply Manager']
+    },
+    { 
+      icon: Warehouse, 
+      label: "Warehouse Structure", 
+      to: "/warehouse-structure",
+      // Warehouse structure is visible to admins and warehouse-related roles
+      roles: ['admin', 'warehouse manager']
+    },
+    { 
+      icon: ClipboardList, 
+      label: "Orders", 
+      to: "/orders",
+      // Orders is visible to admins and customers
+      roles: ['admin', 'customer']
+    },
+    { 
+      icon: ClipboardList, 
+      label: "Employee Workflow", 
+      to: "/employee-workflow",
+      // Employee Workflow is visible to employees who handle orders
+      roles: ['Order processing employee', 'Packaging employee', 'Shipping employee']
+    },
+    { 
+      icon: Truck, 
+      label: "Shipments", 
+      to: "/shipments",
+      // Shipments is visible to admins, shipping roles, and customers
+      roles: ['admin', 'customer', 'Shipping employee', 'Shipping Manager']
+    },
+    { 
+      icon: ShoppingCart, 
+      label: "Shop", 
+      to: "/shop",
+      // Shop is visible to everyone, including unauthenticated users
+      roles: ['admin', 'customer', 'Shipping Manager' ,'warehouse manager' , 'General Manager']
+    },
+    { 
+      icon: Settings, 
+      label: "Settings", 
+      to: "/settings",
+      // Settings is visible to admins
+      roles: ['admin']
+    },
   ];
+
+  // Filter navigation items based on user roles
+  const navItems = useMemo(() => {
+    return allNavItems.filter(item => {
+      // Items with empty roles array are visible to everyone
+      if (item.roles.length === 0) return true;
+      
+      // If user is not authenticated, only show items with empty roles
+      if (!isAuthenticated) return item.roles.length === 0;
+      
+      // Check if user has any of the required roles
+      return isAdmin(user) || hasAnyRole(user, item.roles);
+    });
+  }, [user, isAuthenticated]);
 
   const handleLogout = () => {
     logout();
@@ -86,12 +168,12 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
           <SidebarHeader className="border-b border-gray-200 h-16 flex items-center px-4">
             <div className="flex items-center">
               <img
-                src="/favicon.ico"
+                src="/warehouse.png"
                 alt="WMS Logo"
                 className="w-8 h-8 mr-2"
               />
               {!isCollapsed && (
-                <span className="font-bold text-lg"> WMS </span>
+                <span className="font text-lg"> Welcome Back! </span>
               )}
             </div>
           </SidebarHeader>

@@ -1,14 +1,35 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Package } from "lucide-react";
+import { CheckCircle, Package, Loader2 } from "lucide-react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const OrderConfirmation = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { order } = location.state || {};
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  // Check authentication
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      toast.error("You must be signed in to view order confirmation");
+      navigate("/signin", { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+  
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading...</span>
+      </div>
+    );
+  }
   
   // Redirect if no order data is present
   if (!order) {

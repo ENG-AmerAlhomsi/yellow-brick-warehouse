@@ -233,7 +233,7 @@ const PositionManagement = () => {
                 <TableCell>{position.bay.row_sy.rowName}</TableCell>
                 <TableCell>{position.bay.row_sy.area.areaName}</TableCell>
                 <TableCell>
-                  <span className={position.isEmpty ? "text-green-500" : "text-red-500"}>
+                  <span className={position.isEmpty ? "text-gray-500" : "text-green-500"}>
                     {position.isEmpty ? "Empty" : "Occupied"}
                   </span>
                 </TableCell>
@@ -342,7 +342,7 @@ const PositionManagement = () => {
                   onCheckedChange={(checked) => setCurrentPosition({ ...currentPosition, isEmpty: checked })}
                   disabled={viewMode}
                 />
-                <span className={currentPosition.isEmpty ? "text-green-500" : "text-red-500"}>
+                <span className={currentPosition.isEmpty ? "text-gray-500" : "text-green-500"}>
                   {currentPosition.isEmpty ? "Empty" : "Occupied"}
                 </span>
               </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AreaManagement from "@/components/warehouse/AreaManagement";
@@ -6,9 +5,16 @@ import RowManagement from "@/components/warehouse/RowManagement";
 import BayManagement from "@/components/warehouse/BayManagement";
 import PositionManagement from "@/components/warehouse/PositionManagement";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Area, Row, Bay,Position } from "@/types/warehouse";
+import { Area, Row, Bay, Position, Pallet } from "@/types/warehouse";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-import { areaApi, rowApi, bayApi, positionApi } from '@/services/api';
+import { areaApi, rowApi, bayApi, positionApi, palletApi } from '@/services/api';
 
 interface WarehouseStructureData {
   area: string;
@@ -16,7 +22,16 @@ interface WarehouseStructureData {
     row: string;
     bays: {
       bay: string;
-      positions: number;
+      positions: {
+        id: number;
+        name: string;
+        level: number;
+        isEmpty: boolean;
+        productInfo?: {
+          productName: string;
+          quantity: number;
+        };
+      }[];
     }[];
   }[];
 }
@@ -27,26 +42,31 @@ const WarehouseStructure = () => {
   const [rows, setRows] = useState<Row[]>([]);
   const [bays, setBays] = useState<Bay[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [pallets, setPallets] = useState<Pallet[]>([]);
   const [warehouseStructure, setWarehouseStructure] = useState<WarehouseStructureData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch all data on component mount
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       try {
-        const [areasRes, rowsRes, baysRes, positionsRes] = await Promise.all([
+        const [areasRes, rowsRes, baysRes, positionsRes, palletsRes] = await Promise.all([
           areaApi.getAll(),
           rowApi.getAll(),
           bayApi.getAll(),
-          positionApi.getAll()
+          positionApi.getAll(),
+          palletApi.getAll()
         ]);
 
         setAreas(areasRes.data);
         setRows(rowsRes.data);
         setBays(baysRes.data);
         setPositions(positionsRes.data);
+        setPallets(palletsRes.data);
 
         // Transform data into warehouse structure
-        const structure = areasRes.data.map((area: []) => {
+        const structure = areasRes.data.map((area) => {
           const areaRows = rowsRes.data.filter((row) => row.area.id === area.id);
           return {
             area: area.areaName,
@@ -54,10 +74,31 @@ const WarehouseStructure = () => {
               const rowBays = baysRes.data.filter((bay) => bay.row_sy.id === row.id);
               return {
                 row: row.rowName,
-                bays: rowBays.map((bay) => ({
-                  bay: bay.bayName,
-                  positions: positionsRes.data.filter((pos) => pos.bay.id === bay.id).length
-                }))
+                bays: rowBays.map((bay) => {
+                  const bayPositions = positionsRes.data.filter((pos) => pos.bay.id === bay.id);
+                  
+                  // Get position details with product info
+                  const positionsWithInfo = bayPositions.map(position => {
+                    // Find if there's a pallet in this position
+                    const pallet = palletsRes.data.find(p => p.position.id === position.id);
+                    
+                    return {
+                      id: position.id,
+                      name: position.positionName,
+                      level: position.level,
+                      isEmpty: position.isEmpty,
+                      productInfo: pallet ? {
+                        productName: pallet.product.name,
+                        quantity: pallet.quantity
+                      } : undefined
+                    };
+                  });
+                  
+                  return {
+                    bay: bay.bayName,
+                    positions: positionsWithInfo
+                  };
+                })
               };
             })
           };
@@ -66,6 +107,8 @@ const WarehouseStructure = () => {
         setWarehouseStructure(structure);
       } catch (error) {
         console.error('Error fetching warehouse data:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -115,34 +158,74 @@ const WarehouseStructure = () => {
         </TabsContent>
         
         <TabsContent value="structure" className="space-y-4">
-          
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {warehouseStructure.map((area, index) => (
-              <Card key={index} className="card-hover">
-                <CardHeader>
-                  <CardTitle>Area {area.area}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                   {area.rows.map((row, rowIndex) => (
-                    <div key={rowIndex} className="mb-4">
-                      <h4 className="font-semibold mb-2">Row {row.row}</h4>
-                      <div className="grid grid-cols-3 gap-2">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-wms-yellow"></div>
+              <span className="ml-3">Loading warehouse structure...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {warehouseStructure.map((area, index) => (
+                <Card key={index} className="card-hover">
+                  <CardHeader>
+                    <CardTitle>Area {area.area}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {area.rows.map((row, rowIndex) => (
+                      <div key={rowIndex} className="mb-4">
+                        <h4 className="font-semibold mb-2">Row {row.row}</h4>
                         {row.bays.map((bay, bayIndex) => (
-                          <div key={bayIndex} className="bg-gray-100 p-3 rounded">
-                            <div className="text-sm font-medium">Bay {bay.bay}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {bay.positions} positions
+                          <div key={bayIndex} className="mb-3">
+                            <div className="text-sm font-medium mb-1">Bay {bay.bay}</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                              {bay.positions.map((position, posIndex) => (
+                                <TooltipProvider key={posIndex}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className={`p-2 rounded-md ${position.isEmpty 
+                                        ? 'bg-gray-100 border border-gray-300' 
+                                        : 'bg-green-100 border border-green-300'}`}
+                                      >
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-xs font-medium">
+                                            {position.name}
+                                          </span>
+                                          <Badge className={position.isEmpty 
+                                            ? 'bg-gray-500' 
+                                            : 'bg-green-600'}>
+                                            {position.isEmpty ? 'Empty' : 'Occupied'}
+                                          </Badge>
+                                        </div>
+                                        <div className="text-xs mt-1">Level: {position.level}</div>
+                                        {!position.isEmpty && position.productInfo && (
+                                          <div className="mt-1 text-xs truncate text-green-700">
+                                            {position.productInfo.productName.substring(0, 15)}
+                                            {position.productInfo.productName.length > 15 ? '...' : ''}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    {!position.isEmpty && position.productInfo && (
+                                      <TooltipContent>
+                                        <div className="p-2">
+                                          <p className="font-bold">{position.productInfo.productName}</p>
+                                          <p>Quantity: {position.productInfo.quantity}</p>
+                                        </div>
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ))}
                             </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

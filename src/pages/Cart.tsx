@@ -3,13 +3,25 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCart } from "@/hooks/useCart";
-import { Trash2, Plus, Minus, ArrowRight } from "lucide-react";
+import { Trash2, Plus, Minus, ArrowRight, LogIn } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const CartPage = () => {
   const { items, removeFromCart, updateQuantity, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  
+  const handleCheckout = () => {
+    if (!isAuthenticated) {
+      toast.error("Please sign in to proceed with checkout");
+      navigate('/signin');
+      return;
+    }
+    navigate('/checkout');
+  };
   
   if (items.length === 0) {
     return (
@@ -141,10 +153,19 @@ const CartPage = () => {
                 
                 <Button 
                   className="w-full mt-4 bg-wms-yellow text-black hover:bg-wms-yellow-dark"
-                  onClick={() => navigate('/checkout')}
+                  onClick={handleCheckout}
                 >
-                  Proceed to Checkout
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  {isAuthenticated ? (
+                    <>
+                      Proceed to Checkout
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  ) : (
+                    <>
+                      Sign in to Checkout
+                      <LogIn className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
                 
                 <div className="text-center mt-4">

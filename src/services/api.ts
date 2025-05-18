@@ -70,9 +70,47 @@ export const palletApi = {
   update: (id: number, data: { palletName: string, quantity: number, maximumCapacity: number, manufacturingDate: Date, expiryDate: Date, supplierName: string, status: string, position: { id: number }, product: { id: number } }) =>
     api.put(`/pallets/${id}`, data),
   delete: (id: number) => api.delete(`/pallets/${id}`),
-  getEmptyPositions: () => api.get('/positions/empty')
+  getEmptyPositions: () => api.get('/positions/empty'),
+  getPalletsByProductId: (productId: number) => api.get(`/pallets/product/${productId}`),
+  updatePalletOnly: (id: number, data: { palletName: string, quantity: number, maximumCapacity: number, manufacturingDate: Date, expiryDate: Date, supplierName: string, status: string, position: { id: number }, product: { id: number } }) =>
+    api.put(`/pallets/updatepalletonly/${id}`, data),
 };
 
+
+// Order API endpoints
+export const orderApi = {
+  getAll: () => api.get('/orders'),
+  getById: (id: number) => api.get(`/orders/${id}`),
+  create: (data: { 
+    customer: string, 
+    date: string, 
+    items: number, 
+    value: string, 
+    status: string, 
+    shipment: string, 
+    products: Array<{
+      product: { id: number },
+      quantity: number
+    }>,
+    shippingAddress: {
+      address: string,
+      city: string,
+      state: string,
+      zipCode: string
+    },
+    payment: {
+      last4: string
+    },
+    userId: string
+  }) => api.post('/orders', data),
+  delete: (id: number) => api.delete(`/orders/${id}`),
+  exportOrders: (format: string = 'csv') => api.get(`/orders/export?format=${format}`, {
+    responseType: 'blob'
+  }),
+  getCustomerOrders: (userId: string) => api.get(`/orders/user/${userId}`),
+  cancelOrder: (id: number) => api.put(`/orders/${id}/cancel`),
+  updateOrder: (id: number, data: any) => api.put(`/orders/${id}`, data)
+};
 
 // Export the api instance for other services
 export default api;

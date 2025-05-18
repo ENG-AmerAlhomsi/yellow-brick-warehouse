@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,6 +52,46 @@ export const PalletManagement = () => {
     product: { id: 0, name: "", description: "", category: "",weight:0, quantityInStock:0, unitPrice:0, batchNumber:"", imageUrl:"" }
   });
 
+  // Helper function to format position with full details
+  const formatFullPosition = (position: Position | null | undefined) => {
+    if (!position) return "N/A";
+    
+    // Get each part of the position hierarchy, handling null values
+    const areaName = position.bay?.row_sy?.area?.areaName || "Unknown";
+    const rowName = position.bay?.row_sy?.rowName || "Unknown";
+    const bayName = position.bay?.bayName || "Unknown";
+    const level = position.level || 0;
+    const posName = position.positionName || "Unknown";
+    
+    return `${areaName}-${rowName}-${bayName}-${level}-${posName}`;
+  };
+  
+  // Helper function to ensure we have complete position data
+  const ensureCompletePositionData = async (positions: Position[]) => {
+    // If positions already have complete data, return them
+    if (positions.length > 0 && 
+        positions[0].bay && 
+        positions[0].bay.row_sy && 
+        positions[0].bay.row_sy.area) {
+      return positions;
+    }
+    
+    try {
+      // Get complete position data
+      const response = await positionApi.getAll();
+      const completePositions = response.data;
+      
+      // Map the IDs from our positions to the complete data
+      return positions.map(pos => {
+        const completePos = completePositions.find(cp => cp.id === pos.id);
+        return completePos || pos;
+      });
+    } catch (error) {
+      console.error('Error fetching complete position data:', error);
+      return positions;
+    }
+  };
+
   // Fetch pallets, products and empty positions on component mount
   useEffect(() => {
     setIsLoading(true);
@@ -67,8 +106,13 @@ export const PalletManagement = () => {
 
         setPallets(palletsRes.data);
         setProducts(productsRes.data || []);
-        setEmptyPositions(emptyPositionsRes.data || []);
-        setPositions(allPositionsRes.data || []); // Set all positions for reference
+        
+        // Ensure we have complete position data with full hierarchy
+        const completeEmptyPositions = await ensureCompletePositionData(emptyPositionsRes.data || []);
+        const completePositions = await ensureCompletePositionData(allPositionsRes.data || []);
+        
+        setEmptyPositions(completeEmptyPositions);
+        setPositions(completePositions);
         setIsLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -193,8 +237,13 @@ export const PalletManagement = () => {
       ]);
 
       setPallets(palletsRes.data);
-      setEmptyPositions(emptyPositionsRes.data);
-      setPositions(allPositionsRes.data); // Update all positions to ensure we have the complete list
+      
+      // Ensure we have complete position data with full hierarchy
+      const completeEmptyPositions = await ensureCompletePositionData(emptyPositionsRes.data || []);
+      const completePositions = await ensureCompletePositionData(allPositionsRes.data || []);
+      
+      setEmptyPositions(completeEmptyPositions);
+      setPositions(completePositions);
 
       setDialogOpen(false);
     } catch (error) {
@@ -216,7 +265,10 @@ export const PalletManagement = () => {
         ]);
         
         setPallets(palletsRes.data);
-        setEmptyPositions(emptyPositionsRes.data);
+        
+        // Ensure we have complete position data with full hierarchy
+        const completeEmptyPositions = await ensureCompletePositionData(emptyPositionsRes.data || []);
+        setEmptyPositions(completeEmptyPositions);
       } catch (error) {
         console.error('Error deleting pallet:', error);
         toast.error('Failed to delete pallet');
@@ -311,7 +363,7 @@ export const PalletManagement = () => {
                 </TableCell>
                 <TableCell>
                   {pallet.status === "stored" && pallet.position ? 
-                    `${pallet.position.bay?.bayName}-${pallet.position.level}-${pallet.position.positionName}` : 
+                    formatFullPosition(pallet.position) : 
                     "N/A"}
                 </TableCell>
                 <TableCell className="text-right space-x-2">
@@ -479,7 +531,7 @@ export const PalletManagement = () => {
                     <Input
                       id="position"
                       value={currentPallet.position ? 
-                        `${currentPallet.position.bay?.bayName}-${currentPallet.position.level}-${currentPallet.position.positionName}` : 
+                        formatFullPosition(currentPallet.position) : 
                         "N/A"}
                       readOnly
                     />
@@ -505,7 +557,7 @@ export const PalletManagement = () => {
                           )
                           .map((position) => (
                             <SelectItem key={position.id} value={position.id?.toString() || ""}>
-                              {position.bay?.bayName}-{position.level}-{position.positionName}
+                              {formatFullPosition(position)}
                             </SelectItem>
                           ))}
                       </SelectContent>

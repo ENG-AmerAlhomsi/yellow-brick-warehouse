@@ -1,16 +1,25 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+  Search, 
+  Plus, 
+  Filter, 
+  Download,
+  Loader2,
+} from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { orderApi } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { productApi } from "@/services/api";
+import { hasRole, isAdmin } from "@/utils/authHelpers";
+import { Order } from "@/types/order";
+import OrdersTable from "@/components/orders/OrdersTable";
+import OrderDetails from "@/components/orders/OrderDetails";
+import EditOrder from "@/components/orders/EditOrder";
+import CancelOrderConfirm from "@/components/orders/CancelOrderConfirm";
 import { 
   Select,
   SelectContent,
@@ -19,305 +28,430 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Search, 
-  Plus, 
-  Filter, 
-  Download,
-  FileText,
-} from "lucide-react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-
-// Mock orders data
-const ordersData = [
-  { 
-    id: "ORD-1001", 
-    customer: "Acme Inc.", 
-    date: "2025-05-07", 
-    items: 12, 
-    value: "$1,245.00", 
-    status: "Pending", 
-    shipment: "Not Assigned" 
-  },
-  { 
-    id: "ORD-1002", 
-    customer: "Global Solutions", 
-    date: "2025-05-06", 
-    items: 5, 
-    value: "$780.50", 
-    status: "Processing", 
-    shipment: "SHIP-2001" 
-  },
-  { 
-    id: "ORD-1003", 
-    customer: "Tech Unlimited", 
-    date: "2025-05-05", 
-    items: 8, 
-    value: "$2,340.75", 
-    status: "Ready for Pickup", 
-    shipment: "SHIP-2002" 
-  },
-  { 
-    id: "ORD-1004", 
-    customer: "Moore Supplies", 
-    date: "2025-05-04", 
-    items: 3, 
-    value: "$356.25", 
-    status: "Shipped", 
-    shipment: "SHIP-2003" 
-  },
-  { 
-    id: "ORD-1005", 
-    customer: "Eastern Distributors", 
-    date: "2025-05-03", 
-    items: 22, 
-    value: "$4,532.00", 
-    status: "Delivered", 
-    shipment: "SHIP-2004" 
-  },
-  { 
-    id: "ORD-1006", 
-    customer: "City Hardware", 
-    date: "2025-05-02", 
-    items: 7, 
-    value: "$943.50", 
-    status: "Canceled", 
-    shipment: "N/A" 
-  },
-  { 
-    id: "ORD-1007", 
-    customer: "Acme Inc.", 
-    date: "2025-05-01", 
-    items: 9, 
-    value: "$1,120.00", 
-    status: "Delivered", 
-    shipment: "SHIP-2005" 
-  },
-  { 
-    id: "ORD-1008", 
-    customer: "Tech Unlimited", 
-    date: "2025-04-30", 
-    items: 15, 
-    value: "$3,675.25", 
-    status: "Delivered", 
-    shipment: "SHIP-2006" 
-  },
-];
 
 const OrdersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activeTab, setActiveTab] = useState("business");
-  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
+  const [businessOrders, setBusinessOrders] = useState<Order[]>([]);
+  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isCanceling, setIsCanceling] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
+  const [isEditOrderOpen, setIsEditOrderOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [editedOrder, setEditedOrder] = useState<Order | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
+  const { user, isAuthenticated } = useAuth();
 
+  // Determine which tabs to show based on roles
+  const showBusinessTab = isAdmin(user);
+  const showRetailTab = isAdmin(user);
+  const showCustomerTab = hasRole(user, 'customer');
+
+  // Set appropriate default tab based on roles
   useEffect(() => {
-    // Load customer orders from localStorage
-    const savedOrders = localStorage.getItem('orders');
-    if (savedOrders) {
-      try {
-        setCustomerOrders(JSON.parse(savedOrders));
-      } catch (e) {
-        console.error("Failed to parse orders from localStorage:", e);
+    if (user) {
+      if (showBusinessTab) {
+        setActiveTab("business");
+      } else if (showRetailTab) {
+        setActiveTab("retail");
+      } else if (showCustomerTab) {
+        setActiveTab("customer");
       }
     }
-  }, []);
+  }, [user, showBusinessTab, showRetailTab, showCustomerTab]);
 
+  // Fetch orders from API
+  const fetchOrders = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch all orders for business tab (admin only)
+      if (isAdmin(user)) {
+        const businessResponse = await orderApi.getAll();
+        setBusinessOrders(businessResponse.data);
+      }
+      
+      // Fetch user-specific orders if authenticated and is a customer
+      if (isAuthenticated && user?.id && hasRole(user, 'customer')) {
+          const customerResponse = await orderApi.getCustomerOrders(user.id);
+          setCustomerOrders(customerResponse.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch orders:", error);
+      toast.error("Failed to load orders. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchOrders();
+  }, [isAuthenticated, user]);
+
+  // Load products for the edit form
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await productApi.getAll();
+        setAllProducts(response.data);
+      } catch (error) {
+        console.error("Failed to fetch products:", error);
+      }
+    };
+    
+    fetchProducts();
+  }, []);
+  
   // Filter business orders based on search and status filter
-  const filteredBusinessOrders = ordersData.filter(order => {
+  const filteredBusinessOrders = businessOrders.filter(order => {
     const matchesSearch = 
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+      (order.id?.toString() || '').includes(searchQuery.toLowerCase()) ||
+      (order.customer?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     
     if (statusFilter === "all") return matchesSearch;
-    return matchesSearch && order.status.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && (order.status?.toLowerCase() || '') === statusFilter.toLowerCase();
   });
 
   // Filter customer orders based on search and status filter
   const filteredCustomerOrders = customerOrders.filter(order => {
     const matchesSearch = 
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+      (order.id?.toString() || '').includes(searchQuery.toLowerCase()) ||
+      (order.customer?.toLowerCase() || '').includes(searchQuery.toLowerCase());
     
     if (statusFilter === "all") return matchesSearch;
-    return matchesSearch && order.status.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && (order.status?.toLowerCase() || '') === statusFilter.toLowerCase();
   });
 
   // Get the active orders based on the current tab
-  const activeOrders = activeTab === "business" ? filteredBusinessOrders : filteredCustomerOrders;
-  const totalOrders = activeTab === "business" ? ordersData.length : customerOrders.length;
+  const activeOrders = 
+    activeTab === "business" ? filteredBusinessOrders : 
+    activeTab === "retail" ? filteredCustomerOrders : 
+    filteredCustomerOrders;
+  
+  const totalOrders = 
+    activeTab === "business" ? businessOrders.length : 
+    activeTab === "retail" ? customerOrders.length : 
+    customerOrders.length;
+  
+  // Handle order export
+  const handleExportOrders = async () => {
+    setIsExporting(true);
+    try {
+      const response = await orderApi.exportOrders('csv');
+      
+      // Create a download link for the file
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `orders-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url); // Clean up the URL object
+      
+      toast.success("Orders exported successfully");
+    } catch (error) {
+      console.error("Failed to export orders:", error);
+      toast.error("Failed to export orders. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+  
+  // Initiate order cancellation confirmation
+  const confirmCancelOrder = (orderId: string) => {
+    setOrderToCancel(orderId);
+    setShowCancelConfirm(true);
+  };
+
+  // Handle actual order cancellation after confirmation
+  const handleCancelOrder = async () => {
+    if (!orderToCancel) return;
+    
+    setIsCanceling(orderToCancel);
+    try {
+      await orderApi.cancelOrder(Number(orderToCancel));
+      toast.success("Order has been canceled successfully");
+      
+      // Refresh the orders list
+      fetchOrders();
+    } catch (error: any) {
+      console.error("Failed to cancel order:", error);
+      
+      // Extract error message from response if available
+      const errorMsg = error.response?.data || "Failed to cancel order. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setIsCanceling(null);
+      setShowCancelConfirm(false);
+      setOrderToCancel(null);
+      
+      // Close the details dialog if it was open
+      if (isOrderDetailsOpen) {
+        setIsOrderDetailsOpen(false);
+      }
+    }
+  };
+  
+  // Open order details dialog
+  const handleViewOrderDetails = (order: Order) => {
+    setSelectedOrder(order);
+    setIsOrderDetailsOpen(true);
+  };
+  
+  // Handle opening the edit dialog
+  const handleEditOrder = (order: Order) => {
+    // Create a deep copy of the order to avoid modifying the original
+    setEditedOrder(JSON.parse(JSON.stringify(order)));
+    setIsEditOrderOpen(true);
+  };
+  
+  // Update the order
+  const handleUpdateOrder = async () => {
+    if (!editedOrder) return;
+    
+    setIsUpdating(true);
+    try {
+      await orderApi.updateOrder(Number(editedOrder.id), editedOrder);
+      toast.success("Order updated successfully");
+      
+      // Refresh the orders list and close the dialog
+      fetchOrders();
+      setIsEditOrderOpen(false);
+    } catch (error: any) {
+      console.error("Failed to update order:", error);
+      const errorMsg = error.response?.data || "Failed to update order. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-1">Order Management</h1>
-        <p className="text-muted-foreground">
-          Track and manage customer orders
-        </p>
+    <>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">Order Management</h1>
+          <p className="text-muted-foreground">
+            Track and manage customer orders
+          </p>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4">
+            {showBusinessTab && (
+              <TabsTrigger value="business">Business Orders</TabsTrigger>
+            )}
+            {showRetailTab && (
+              <TabsTrigger value="retail">Retail Customer Orders</TabsTrigger>
+            )}
+            {showCustomerTab && (
+              <TabsTrigger value="customer">My Orders</TabsTrigger>
+            )}
+          </TabsList>
+          
+          {/* Business Tab Content - Only for Admins */}
+          {showBusinessTab && (
+            <TabsContent value="business">
+              <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <Input 
+                    placeholder="Search by order ID or customer..." 
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="all">All Orders</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="ready for pickup">Ready for Pickup</SelectItem>
+                        <SelectItem value="ready for shipping">Ready for Shipping</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="canceled">Canceled</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Only show New Order button for admins */}
+                  {isAdmin(user) && (
+                    <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Order
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+          )}
+          
+          {/* Retail Tab Content */}
+          {showRetailTab && (
+            <TabsContent value="retail">
+              <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <Input 
+                    placeholder="Search by order ID or customer..." 
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="all">All Orders</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="canceled">Canceled</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button variant="outline">
+                    <Filter className="h-4 w-4 mr-2" />
+                    More Filters
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+          )}
+          
+          {/* Customer Tab Content - Only for Customers */}
+          {showCustomerTab && (
+            <TabsContent value="customer">
+              <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <Input 
+                    placeholder="Search by order ID or date..." 
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Status Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="all">All Orders</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="canceled">Canceled</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+          )}
+
+          <Card>
+            <CardContent className="p-0">
+              <OrdersTable
+                orders={activeOrders}
+                isLoading={isLoading}
+                activeTab={activeTab}
+                isCanceling={isCanceling}
+                confirmCancelOrder={confirmCancelOrder}
+                handleViewOrderDetails={handleViewOrderDetails}
+                handleEditOrder={handleEditOrder}
+                noOrdersMessage={
+                  activeTab === "retail" ? 
+                              "No customer orders found. Orders placed through the shop will appear here." :
+                              "No orders found matching your criteria."
+                            }
+              />
+            </CardContent>
+          </Card>
+          
+          <div className="flex justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {activeOrders.length} of {totalOrders} orders
+              </div>
+              {/* Only show export button for admins */}
+            {isAdmin(user) && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleExportOrders}
+                  disabled={isExporting || activeOrders.length === 0}
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+        </Tabs>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="business">Business Orders</TabsTrigger>
-          <TabsTrigger value="retail">Retail Customer Orders</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="business">
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-              <Input 
-                placeholder="Search by order ID or customer..." 
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="all">All Orders</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="ready for pickup">Ready for Pickup</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="delivered">Delivered</SelectItem>
-                    <SelectItem value="canceled">Canceled</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                More Filters
-              </Button>
-              
-              <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
-                <Plus className="h-4 w-4 mr-2" />
-                New Order
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="retail">
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-              <Input 
-                placeholder="Search by order ID or customer..." 
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="all">All Orders</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="delivered">Delivered</SelectItem>
-                    <SelectItem value="canceled">Canceled</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                More Filters
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
+      {/* Order Details Dialog */}
+      <OrderDetails
+        isOpen={isOrderDetailsOpen}
+        setIsOpen={setIsOrderDetailsOpen}
+        selectedOrder={selectedOrder}
+        isCanceling={isCanceling}
+        confirmCancelOrder={confirmCancelOrder}
+      />
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px]">Order ID</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Items</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Shipment</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeOrders.length > 0 ? (
-                    activeOrders.map((order) => (
-                      <TableRow key={order.id} className="hover-row">
-                        <TableCell className="font-medium">{order.id}</TableCell>
-                        <TableCell>{order.customer}</TableCell>
-                        <TableCell>{order.date}</TableCell>
-                        <TableCell className="text-right">{order.items}</TableCell>
-                        <TableCell className="text-right">{order.value}</TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            order.status === "Delivered" ? "bg-green-100 text-green-800" :
-                            order.status === "Shipped" ? "bg-blue-100 text-blue-800" :
-                            order.status === "Ready for Pickup" ? "bg-purple-100 text-purple-800" :
-                            order.status === "Processing" ? "bg-yellow-100 text-yellow-800" :
-                            order.status === "Pending" ? "bg-gray-100 text-gray-800" :
-                            "bg-red-100 text-red-800"
-                          }`}>
-                            {order.status}
-                          </span>
-                        </TableCell>
-                        <TableCell>{order.shipment}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm">
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            Edit
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10">
-                        <p className="text-muted-foreground">
-                          {activeTab === "retail" ? 
-                            "No customer orders found. Orders placed through the shop will appear here." :
-                            "No orders found matching your criteria."
-                          }
-                        </p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <div className="flex justify-between mt-4">
-          <div className="text-sm text-muted-foreground">
-            Showing {activeOrders.length} of {totalOrders} orders
-          </div>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
-      </Tabs>
-    </div>
+      {/* Edit Order Dialog */}
+      <EditOrder
+        isOpen={isEditOrderOpen}
+        setIsOpen={setIsEditOrderOpen}
+        editedOrder={editedOrder}
+        setEditedOrder={setEditedOrder}
+        isUpdating={isUpdating}
+        handleUpdateOrder={handleUpdateOrder}
+      />
+
+      {/* Cancel Order Confirmation Dialog */}
+      <CancelOrderConfirm
+        isOpen={showCancelConfirm}
+        setIsOpen={setShowCancelConfirm}
+        orderToCancel={orderToCancel}
+        setOrderToCancel={setOrderToCancel}
+        isCanceling={isCanceling}
+        handleCancelOrder={handleCancelOrder}
+      />
+    </>
   );
 };
 

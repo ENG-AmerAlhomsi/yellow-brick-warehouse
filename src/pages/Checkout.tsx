@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -18,8 +18,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { orderApi } from "@/services/api";
 
 const checkoutSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
@@ -41,7 +42,7 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>;
 const Checkout = () => {
   const { items, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultValues: Partial<CheckoutFormValues> = {
@@ -55,6 +56,21 @@ const Checkout = () => {
     defaultValues,
   });
   
+  useEffect(() => {
+    // Update form values when user data is loaded
+    if (user) {
+      form.setValue('firstName', user.firstName || '');
+      form.setValue('lastName', user.lastName || '');
+      form.setValue('email', user.email || '');
+    }
+  }, [user, form]);
+  
+  // Redirect to login if not authenticated
+  if (!isLoading && !isAuthenticated) {
+    toast.error("Please sign in to continue with checkout");
+    return <Navigate to="/signin" replace />;
+  }
+  
   if (items.length === 0) {
     navigate("/cart");
     return null;
@@ -64,20 +80,24 @@ const Checkout = () => {
     setIsSubmitting(true);
     
     try {
-      // This would be where we'd send the order to the backend
-      // For now, we'll simulate a delay and create a mock order
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!user) {
+        toast.error("You must be signed in to place an order");
+        navigate('/signin');
+        return;
+      }
       
-      // Create mock order data
+      // Create order data
       const orderData = {
-        id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
         customer: `${data.firstName} ${data.lastName}`,
         date: new Date().toISOString().split('T')[0],
         items: items.reduce((sum, item) => sum + item.quantity, 0),
-        value: `$${cartTotal.toFixed(2)}`,
         status: "Pending",
+        value: `$${cartTotal.toFixed(2)}`,
         shipment: "Not Assigned",
-        products: items,
+        products: items.map(item => ({
+          product: { id: item.id },
+          quantity: item.quantity
+        })),
         shippingAddress: {
           address: data.address,
           city: data.city,
@@ -87,11 +107,12 @@ const Checkout = () => {
         payment: {
           last4: data.cardNumber.slice(-4),
         },
+        userId: user.id
       };
       
-      // Save order to localStorage (in a real app, this would go to a backend)
-      const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]');
-      localStorage.setItem('orders', JSON.stringify([...existingOrders, orderData]));
+      // Send order to backend API
+      const response = await orderApi.create(orderData);
+      const createdOrder = response.data;
       
       // Clear the cart
       clearCart();
@@ -99,8 +120,8 @@ const Checkout = () => {
       // Show success message
       toast.success("Order placed successfully!");
       
-      // Redirect to confirmation page or orders page
-      navigate('/order-confirmation', { state: { order: orderData } });
+      // Redirect to confirmation page with order data
+      navigate('/order-confirmation', { state: { order: createdOrder } });
     } catch (error) {
       console.error("Error processing order:", error);
       toast.error("Failed to process your order. Please try again.");
@@ -359,14 +380,14 @@ const Checkout = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Tax</span>
-                  <span>${(cartTotal * 0.07).toFixed(2)}</span>
+                  <span>Free</span>
                 </div>
                 
                 <Separator />
                 
                 <div className="flex justify-between font-bold">
                   <span>Total</span>
-                  <span>${(cartTotal + cartTotal * 0.07).toFixed(2)}</span>
+                  <span>${(cartTotal ).toFixed(2)}</span>
                 </div>
               </div>
             </CardContent>

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { ReactKeycloakProvider, useKeycloak } from "@react-keycloak/web";
 import { keycloak } from "@/config/keycloak";
@@ -17,9 +16,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Configure Keycloak init options
+const keycloakInitOptions = {
+  onLoad: 'check-sso',
+  silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
+  checkLoginIframe: false,
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <ReactKeycloakProvider authClient={keycloak}>
+    <ReactKeycloakProvider 
+      authClient={keycloak}
+      initOptions={keycloakInitOptions}
+    >
       <AuthContextContent>{children}</AuthContextContent>
     </ReactKeycloakProvider>
   );
@@ -30,31 +39,74 @@ const AuthContextContent: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (initialized && keycloak.authenticated) {
-      const userProfile = {
-        id: keycloak.subject ?? "",
-        username: keycloak.tokenParsed?.preferred_username ?? "",
-        firstName: keycloak.tokenParsed?.given_name ?? "",
-        lastName: keycloak.tokenParsed?.family_name ?? "",
-        email: keycloak.tokenParsed?.email ?? "",
-        roles: keycloak.tokenParsed?.realm_access?.roles ?? [],
-      };
-      setUser(userProfile);
-    } else {
-      setUser(null);
+    
+    if (initialized) {
+      if (keycloak.authenticated) {        
+        try {
+          // Get realm roles
+          const realmRoles = keycloak.tokenParsed?.realm_access?.roles || [];
+          
+          // Get client roles from different clients
+          const clientRoles: string[] = [];
+          
+          // Check WareHouse-frontend client roles
+          if (keycloak.tokenParsed?.resource_access?.['WareHouse-frontend']?.roles) {
+            const frontendRoles = keycloak.tokenParsed.resource_access['WareHouse-frontend'].roles;
+            clientRoles.push(...frontendRoles);
+          }
+          
+          // Check WareHouse client roles
+          if (keycloak.tokenParsed?.resource_access?.['WareHouse']?.roles) {
+            const warehouseRoles = keycloak.tokenParsed.resource_access['WareHouse'].roles;
+            clientRoles.push(...warehouseRoles);
+          }
+          
+          // Combine all roles
+          const allRoles = [...realmRoles, ...clientRoles];
+          
+          const userProfile = {
+            id: keycloak.subject ?? "",
+            username: keycloak.tokenParsed?.preferred_username ?? "",
+            firstName: keycloak.tokenParsed?.given_name ?? "",
+            lastName: keycloak.tokenParsed?.family_name ?? "",
+            email: keycloak.tokenParsed?.email ?? "",
+            roles: allRoles,
+          };
+          
+          setUser(userProfile);
+        } catch (error) {
+          console.error("AuthContext - Error parsing user data:", error);
+          toast.error("Error loading user profile");
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
     }
-  }, [initialized, keycloak.authenticated]);
+  }, [initialized, keycloak.authenticated, keycloak.tokenParsed]);
 
   const login = () => {
-    keycloak.login();
+    keycloak.login({
+      redirectUri: window.location.origin + '/shop'
+    }).catch(error => {
+      toast.error("Login failed");
+    });
   };
 
   const register = () => {
-    keycloak.register();
+    keycloak.register().catch(error => {
+      console.error("Registration error:", error);
+      toast.error("Registration failed");
+    });
   };
 
   const logout = () => {
-    keycloak.logout();
+    keycloak.logout({
+      redirectUri: window.location.origin + '/shop'
+    }).catch(error => {
+      console.error("Logout error:", error);
+      toast.error("Logout failed");
+    });
   };
 
   const forgotPassword = async (email: string) => {
