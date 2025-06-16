@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
   Warehouse,
   LogOut,
   ShoppingCart,
+  PackageCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/hooks/useCart";
@@ -87,50 +89,57 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
       icon: LayoutGrid, 
       label: "Dashboard", 
       to: "/",
-      // Dashboard is visible to admins and employees
-      roles: ['admin', 'warehouse manager', 'Supply Manager', 'General Manager', 
-               ]
+      roles: ['admin', 'warehouse manager', 'Supply Manager', 'General Manager', 'Shipping Manager']
     },
     { 
       icon: Package, 
       label: "Inventory", 
       to: "/inventory",
-      // Inventory is visible to admins and inventory-related roles
       roles: ['admin', 'warehouse manager', 'Supply Manager']
     },
     { 
       icon: Warehouse, 
       label: "Warehouse Structure", 
       to: "/warehouse-structure",
-      // Warehouse structure is visible to admins and warehouse-related roles
       roles: ['admin', 'warehouse manager']
     },
     { 
       icon: ClipboardList, 
       label: "Orders", 
       to: "/orders",
-      // Orders is visible to admins and customers
       roles: ['admin', 'customer']
+    },
+    { 
+      icon: ClipboardList, 
+      label: "Purchase Orders", 
+      to: "/purchase-orders",
+      roles: ['admin', 'supply manager', 'supplier']
     },
     { 
       icon: ClipboardList, 
       label: "Employee Workflow", 
       to: "/employee-workflow",
       // Employee Workflow is visible to employees who handle orders
-      roles: ['Order processing employee', 'Packaging employee', 'Shipping employee']
+      roles: ['Order processing employee', 'Packaging employee']
     },
     { 
       icon: Truck, 
-      label: "Shipments", 
-      to: "/shipments",
-      // Shipments is visible to admins, shipping roles, and customers
-      roles: ['admin', 'customer', 'Shipping employee', 'Shipping Manager']
+      label: "Shipment Management", 
+      to: "/shipment-management",
+      // Shipment Management is visible to shipping managers
+      roles: ['admin', 'Shipping Manager']
+    },
+    { 
+      icon: PackageCheck, 
+      label: "Shipping Workflow", 
+      to: "/shipment-workflow",
+      // Shipping Workflow is visible to shipping employees
+      roles: ['Shipping employee']
     },
     { 
       icon: ShoppingCart, 
       label: "Shop", 
       to: "/shop",
-      // Shop is visible to everyone, including unauthenticated users
       roles: ['admin', 'customer', 'Shipping Manager' ,'warehouse manager' , 'General Manager']
     },
     { 
@@ -151,6 +160,15 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
       // If user is not authenticated, only show items with empty roles
       if (!isAuthenticated) return item.roles.length === 0;
       
+      // Special case for Employee Workflow - hide from admin
+      if (item.to === "/employee-workflow" && isAdmin(user)) {
+        return false;
+      }
+
+      if (item.to === "/shipment-workflow" && isAdmin(user)) {
+        return false;
+      }
+      
       // Check if user has any of the required roles
       return isAdmin(user) || hasAnyRole(user, item.roles);
     });
@@ -158,7 +176,7 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
 
   const handleLogout = () => {
     logout();
-    navigate("/signin");
+    navigate("/");
   };
 
   return (
@@ -239,14 +257,10 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
                       </DropdownMenuItem>
                     </>
                   ) : (
-                    <>
-                      <DropdownMenuItem onClick={() => navigate("/signin")}>
-                        Sign In
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate("/signup")}>
-                        Sign Up
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem onClick={() => navigate("/")}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Login
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

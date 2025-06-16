@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,15 +21,14 @@ import {
 import { Link } from "react-router-dom";
 
 import { useProducts } from "@/contexts/ProductContext";
+import { useCategories } from "@/contexts/CategoryContext";
 
 const ShopPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const { addToCart, cartItemsCount } = useCart();
   const { products: shopProducts, loading, error } = useProducts();
-  
-  // Get unique categories for filter
-  const categories = [...new Set(shopProducts.map(product => product.category))];
+  const { categories } = useCategories();
   
   // Filter products based on search and category
   const filteredProducts = shopProducts.filter(product => {
@@ -39,7 +37,7 @@ const ShopPage = () => {
       product.batchNumber.toLowerCase().includes(searchQuery.toLowerCase());
     
     if (categoryFilter === "all") return matchesSearch;
-    return matchesSearch && product.category === categoryFilter;
+    return matchesSearch && product.category?.name === categoryFilter;
   });
 
   const handleAddToCart = (product) => {
@@ -89,18 +87,13 @@ const ShopPage = () => {
               <SelectGroup>
                 <SelectItem value="all">All Categories</SelectItem>
                 {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
+                  <SelectItem key={category.id} value={category.name}>
+                    {category.name}
                   </SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
           </Select>
-          
-          <Button variant="outline">
-            <Filter className="h-4 w-4 mr-2" />
-            More Filters
-          </Button>
           
           <Link to="/cart">
             <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark relative">
@@ -140,7 +133,7 @@ const ShopPage = () => {
               <CardTitle className="text-lg">{product.name}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-muted-foreground">{product.category}</div>
+              <div className="text-sm text-muted-foreground">{product.category?.name || "Uncategorized"}</div>
               <div className="text-sm text-muted-foreground">SKU: {product.batchNumber}</div>
               <div className="mt-2 text-lg font-bold">${product.unitPrice.toFixed(2)}</div>
             </CardContent>

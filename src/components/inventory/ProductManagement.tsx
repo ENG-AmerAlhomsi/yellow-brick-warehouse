@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit, Trash, Eye, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,26 +27,15 @@ import {
   SelectGroup,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Product } from "@/types/warehouse";
+import { Product, Category } from "@/types/Inventory";
 import { productApi } from "@/services/api";
 import { useProducts } from "@/contexts/ProductContext";
+import { useCategories } from "@/contexts/CategoryContext";
 
-// Product categories
-const productCategories = [
-  "Packaging", 
-  "Hardware", 
-  "Electronics", 
-  "Textiles", 
-  "Home Goods", 
-  "Office Supplies", 
-  "Food & Beverage", 
-  "Chemicals", 
-  "Automotive", 
-  "Other"
-];
-
+// We'll use dynamic categories from existing products instead of hardcoded list
 export const ProductManagement = () => {
   const { products, refreshProducts, loading, error } = useProducts();
+  const { categories, loading: categoriesLoading } = useCategories();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState(false);
@@ -60,9 +48,19 @@ export const ProductManagement = () => {
     quantityInStock: 0,
     unitPrice: 0,
     batchNumber: "",
-    category: "Other",
+    category: { id: 0, name: "" },
     imageUrl: "/placeholder.svg",
   });
+
+  // Update current product with first category when categories load
+  useEffect(() => {
+    if (categories.length > 0 && !currentProduct.category?.id) {
+      setCurrentProduct(prev => ({
+        ...prev,
+        category: categories[0]
+      }));
+    }
+  }, [categories]);
 
   const handleOpenDialog = (mode: "add" | "edit" | "view", product?: Product) => {
     setDialogOpen(true);
@@ -79,7 +77,7 @@ export const ProductManagement = () => {
         quantityInStock: 0,
         unitPrice: 0,
         batchNumber: "",
-        category: "Other",
+        category: categories.length > 0 ? categories[0] : { id: 0, name: "" },
         imageUrl: "/placeholder.svg",
       });
     }
@@ -125,7 +123,7 @@ export const ProductManagement = () => {
       (product.batchNumber && product.batchNumber.toLowerCase().includes(searchQuery.toLowerCase()));
     
     if (categoryFilter === "all") return matchesSearch;
-    return matchesSearch && product.category === categoryFilter;
+    return matchesSearch && product.category?.name === categoryFilter;
   });
 
   return (
@@ -160,14 +158,12 @@ export const ProductManagement = () => {
             <SelectContent>
               <SelectGroup>
                 <SelectItem value="all">All Categories</SelectItem>
-                {productCategories.map(category => (
-                  <SelectItem key={category} value={category}>{category}</SelectItem>
+                {categories.map(category => (
+                  <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
           </Select>
-          
-
         </div>
       </div>
       
@@ -176,6 +172,7 @@ export const ProductManagement = () => {
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
+              <TableHead>Image</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Category</TableHead>
@@ -189,9 +186,21 @@ export const ProductManagement = () => {
             {filteredProducts.map((product) => (
               <TableRow key={product.id} className="hover-row">
                 <TableCell>{product.id}</TableCell>
+                <TableCell>
+                  <div className="w-12 h-12 relative rounded-md overflow-hidden">
+                    <img 
+                      src={product.imageUrl || "/placeholder.svg"} 
+                      alt={product.name} 
+                      className="object-cover w-full h-full"
+                      onError={(e) => {
+                        e.currentTarget.src = "/placeholder.svg";
+                      }}
+                    />
+                  </div>
+                </TableCell>
                 <TableCell>{product.batchNumber}</TableCell>
                 <TableCell>{product.name}</TableCell>
-                <TableCell>{product.category}</TableCell>
+                <TableCell>{product.category?.name || "Uncategorized"}</TableCell>
                 <TableCell>{product.quantityInStock}</TableCell>
                 <TableCell>${product.unitPrice.toFixed(2)}</TableCell>
                 <TableCell>{product.weight}</TableCell>
@@ -251,17 +260,23 @@ export const ProductManagement = () => {
               <div className="grid w-full items-center gap-1.5">
                 <label htmlFor="category">Category</label>
                 <Select
-                  value={currentProduct.category}
-                  onValueChange={(value) => setCurrentProduct({ ...currentProduct, category: value })}
-                  disabled={viewMode}
+                  value={currentProduct.category?.id?.toString() || ""}
+                  onValueChange={(value) => {
+                    const selectedCategory = categories.find(c => c.id.toString() === value);
+                    setCurrentProduct({ 
+                      ...currentProduct, 
+                      category: selectedCategory || { id: 0, name: "" } 
+                    });
+                  }}
+                  disabled={viewMode || categoriesLoading}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {productCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id.toString()}>
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -58,7 +58,7 @@ const SignUp = () => {
       <Card className="w-full max-w-lg">
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
-            <img src="/favicon.ico" alt="Logo" className="h-12 w-12" />
+            <img src="/warehouse.png" alt="Logo" className="h-12 w-12" />
           </div>
           <CardTitle className="text-2xl text-center">Create an account</CardTitle>
           <CardDescription className="text-center">

@@ -5,7 +5,8 @@ import RowManagement from "@/components/warehouse/RowManagement";
 import BayManagement from "@/components/warehouse/BayManagement";
 import PositionManagement from "@/components/warehouse/PositionManagement";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Area, Row, Bay, Position, Pallet } from "@/types/warehouse";
+import { Area, Row, Bay, Position } from "@/types/warehouse";
+import { Pallet } from "@/types/Inventory";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -35,6 +36,24 @@ interface WarehouseStructureData {
     }[];
   }[];
 }
+
+// Helper function to get color based on level
+const getLevelColor = (level: number) => {
+  switch (level) {
+    case 1:
+      return { bg: 'bg-[#fff2b2]', border: 'border-[#f0d878]', text: 'text-black' };
+    case 2:
+      return { bg: 'bg-[#dec5e3]', border: 'border-[#c2a5c8]', text: 'text-black' };
+    case 3:
+      return { bg: 'bg-[#b3d4ff]', border: 'border-[#80b0e6]', text: 'text-black' };
+    case 4:
+      return { bg: 'bg-[#c8e6c9]', border: 'border-[#a5d6a7]', text: 'text-black' };
+    case 5:
+      return { bg: 'bg-[#ffcdd2]', border: 'border-[#ef9a9a]', text: 'text-black' };
+    default:
+      return { bg: 'bg-gray-200', border: 'border-gray-300', text: 'text-black' };
+  }
+};
 
 const WarehouseStructure = () => {
   const [currentTab, setCurrentTab] = useState("areas");
@@ -177,45 +196,61 @@ const WarehouseStructure = () => {
                         {row.bays.map((bay, bayIndex) => (
                           <div key={bayIndex} className="mb-3">
                             <div className="text-sm font-medium mb-1">Bay {bay.bay}</div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                              {bay.positions.map((position, posIndex) => (
-                                <TooltipProvider key={posIndex}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className={`p-2 rounded-md ${position.isEmpty 
-                                        ? 'bg-gray-100 border border-gray-300' 
-                                        : 'bg-green-100 border border-green-300'}`}
-                                      >
-                                        <div className="flex justify-between items-center">
-                                          <span className="text-xs font-medium">
-                                            {position.name}
-                                          </span>
-                                          <Badge className={position.isEmpty 
-                                            ? 'bg-gray-500' 
-                                            : 'bg-green-600'}>
-                                            {position.isEmpty ? 'Empty' : 'Occupied'}
-                                          </Badge>
-                                        </div>
-                                        <div className="text-xs mt-1">Level: {position.level}</div>
-                                        {!position.isEmpty && position.productInfo && (
-                                          <div className="mt-1 text-xs truncate text-green-700">
-                                            {position.productInfo.productName.substring(0, 15)}
-                                            {position.productInfo.productName.length > 15 ? '...' : ''}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {bay.positions.map((position, posIndex) => {
+                                const levelColors = getLevelColor(position.level);
+                                const positionClass = position.isEmpty 
+                                  ? 'bg-gray-100 border border-gray-300 text-gray-800' 
+                                  : `${levelColors.bg} border ${levelColors.border} ${levelColors.text}`;
+                                  
+                                return (
+                                  <TooltipProvider key={posIndex}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className={`p-3 rounded-md min-w-[150px] ${positionClass}`}>
+                                          <div className="flex justify-between items-center">
+                                            <span className={`text-sm font-medium ${!position.isEmpty ? levelColors.text : ''}`}>
+                                              Pos {position.name}
+                                            </span>
+                                            <Badge className={position.isEmpty 
+                                              ? 'bg-gray-500' 
+                                              : `bg-opacity-80 ${position.level === 1 ? 'bg-yellow-200 text-black' : 
+                                                 position.level === 2 ? 'bg-purple-200 text-black' : 
+                                                 position.level === 3 ? 'bg-blue-200 text-black' : 
+                                                 position.level === 4 ? 'bg-green-200 text-black' : 
+                                                 'bg-red-200 text-black'}`}>
+                                              {position.isEmpty ? 'Empty' : 'Occupied'}
+                                            </Badge>
                                           </div>
-                                        )}
-                                      </div>
-                                    </TooltipTrigger>
-                                    {!position.isEmpty && position.productInfo && (
-                                      <TooltipContent>
-                                        <div className="p-2">
-                                          <p className="font-bold">{position.productInfo.productName}</p>
-                                          <p>Quantity: {position.productInfo.quantity}</p>
+                                          <div className={`text-sm mt-1 ${!position.isEmpty ? levelColors.text : ''}`}>
+                                            Level: {position.level}
+                                          </div>
+                                          {!position.isEmpty && position.productInfo && (
+                                            <div className={`mt-1 text-sm font-medium truncate ${levelColors.text}`}>
+                                              {position.productInfo.productName.substring(0, 15)}
+                                              {position.productInfo.productName.length > 15 ? '...' : ''}
+                                            </div>
+                                          )}
+                                          {!position.isEmpty && position.productInfo && (
+                                            <div className={`mt-1 text-xs ${levelColors.text}`}>
+                                              Qty: {position.productInfo.quantity}
+                                            </div>
+                                          )}
                                         </div>
-                                      </TooltipContent>
-                                    )}
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ))}
+                                      </TooltipTrigger>
+                                      {!position.isEmpty && position.productInfo && (
+                                        <TooltipContent>
+                                          <div className="p-2">
+                                            <p className="font-bold">{position.productInfo.productName}</p>
+                                            <p>Quantity: {position.productInfo.quantity}</p>
+                                            <p>Level: {position.level}</p>
+                                          </div>
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              })}
                             </div>
                           </div>
                         ))}

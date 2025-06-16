@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Helper functions for checking user roles
 
 // Function to check if user has specific role

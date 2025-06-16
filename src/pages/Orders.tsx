@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +29,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+
+// Add this helper function before the OrdersPage component
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return 'Invalid Date';
+  }
+};
 
 const OrdersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -288,13 +305,6 @@ const OrdersPage = () => {
                     </SelectContent>
                   </Select>
                   
-                  {/* Only show New Order button for admins */}
-                  {isAdmin(user) && (
-                    <Button className="bg-wms-yellow text-black hover:bg-wms-yellow-dark">
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Order
-                    </Button>
-                  )}
                 </div>
               </div>
             </TabsContent>
@@ -385,6 +395,7 @@ const OrdersPage = () => {
                 confirmCancelOrder={confirmCancelOrder}
                 handleViewOrderDetails={handleViewOrderDetails}
                 handleEditOrder={handleEditOrder}
+                formatDate={formatDate}
                 noOrdersMessage={
                   activeTab === "retail" ? 
                               "No customer orders found. Orders placed through the shop will appear here." :

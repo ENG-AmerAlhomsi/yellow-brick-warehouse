@@ -1,3 +1,4 @@
+import { Order } from './order';
 
 export interface Area {
   id?: number;
@@ -24,27 +25,17 @@ export interface Position {
   bay: Bay;
 }
 
-export interface Product {
-  id?: number;
-  name: string;
-  description: string;
-  weight: number;
-  quantityInStock: number;
-  unitPrice: number;
-  batchNumber: string;
-  category: string;
-  imageUrl: string;
-}
 
-export interface Pallet {
+
+export interface Shipment {
   id?: number;
-  palletName: string;
-  quantity: number;
-  maximumCapacity: number;
-  manufacturingDate: Date;
-  expiryDate: Date;
-  supplierName: string;
-  status: "stored" | "shipping" | "processing" | "damaged";
-  position: Position;
-  product: Product;
+  shipmentName: string;
+  fromName: string;
+  toName: string;
+  shippingEmployee: string;
+  typeName: string;
+  statusName: string;
+  orders: Order[];
+  createdAt?: string;
+  lastModified?: string;
 }

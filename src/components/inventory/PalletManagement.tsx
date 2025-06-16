@@ -26,7 +26,8 @@ import {
   SelectGroup,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Pallet, Position, Product } from "@/types/warehouse";
+import { Pallet, Product } from "@/types/Inventory";
+import { Position } from "@/types/warehouse";
 import { productApi, palletApi, positionApi } from "@/services/api";
 
 export const PalletManagement = () => {
@@ -49,7 +50,7 @@ export const PalletManagement = () => {
     supplierName: "",
     status: "stored",
     position: { id: 0, positionName: "", level: 0, bay: { id: 0, bayName: "",row_sy:null }, isEmpty: true },
-    product: { id: 0, name: "", description: "", category: "",weight:0, quantityInStock:0, unitPrice:0, batchNumber:"", imageUrl:"" }
+    product: { id: 0, name: "", description: "", category: null,weight:0, quantityInStock:0, unitPrice:0, batchNumber:"", imageUrl:"" }
   });
 
   // Helper function to format position with full details
@@ -174,7 +175,7 @@ export const PalletManagement = () => {
           id: 0,
           name: "",
           description: "",
-          category: "",
+          category: null,
           weight: 0,
           quantityInStock: 0,
           unitPrice: 0,

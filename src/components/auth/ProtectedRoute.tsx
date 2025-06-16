@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRoles?: string[];
+  excludedRoles?: string[];
 }
 
 // Helper functions for role checking
@@ -27,31 +28,34 @@ const isAdmin = (user: any): boolean => {
   return hasRole(user, 'admin');
 };
 
-const ProtectedRoute = ({ children, requiredRoles = [] }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, requiredRoles = [], excludedRoles = [] }: ProtectedRouteProps) => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
-
-  
 
   // Still loading, show nothing or a loading indicator
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
-  // Check if user is authenticated
+  // Check if user is authenticated - should no longer happen with AuthGuard
   if (!isAuthenticated) {
-    // Redirect to login page, but save the current location
-    return <Navigate to="/signin" state={{ from: location }} replace />;
+    return <div className="flex items-center justify-center h-screen">Redirecting to login...</div>;
   }
 
-  // If there are required roles and user doesn't have any of them (except admins, who can access everything)
-  if (requiredRoles.length > 0 && !isAdmin(user) && !hasAnyRole(user, requiredRoles)) {
-    // For customer role, redirect to shop page
-    if (hasRole(user, 'customer')) {
-      return <Navigate to="/shop" replace />;
-    }
-    
-    // For others, use dashboard or home
+  // Check if user has any excluded role
+  if (excludedRoles.length > 0 && hasAnyRole(user, excludedRoles)) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Admins can access everything UNLESS specifically excluded above
+  if (isAdmin(user)) {
+    return <>{children}</>;
+  }
+
+  // If there are required roles and user doesn't have any of them
+  if (requiredRoles.length > 0 && !hasAnyRole(user, requiredRoles)) {
+    // For unauthorized access, redirect to home which will then
+    // redirect to the appropriate page based on user role
     return <Navigate to="/" replace />;
   }
 

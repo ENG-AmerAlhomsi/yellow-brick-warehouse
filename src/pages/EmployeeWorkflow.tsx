@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,9 @@ import {
   Package,
   Check,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Printer,
+  Tags
 } from "lucide-react";
 import { orderApi, palletApi } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +36,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Interface for product in order
 interface OrderProduct {
@@ -97,7 +101,168 @@ const EmployeeWorkflow = () => {
   const [showOrderProcessingDialog, setShowOrderProcessingDialog] = useState(false);
   const [processingProductId, setProcessingProductId] = useState<number | null>(null);
   const [updatingPallet, setUpdatingPallet] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [selectedOrderForPackaging, setSelectedOrderForPackaging] = useState<Order | null>(null);
+  const [showPackagingLabelDialog, setShowPackagingLabelDialog] = useState(false);
   const { user } = useAuth();
+
+  // Generate PDF with order details
+  const orderDetailsRef = useRef<HTMLDivElement>(null);
+  
+  // Add new ref for packaging label
+  const packagingLabelRef = useRef<HTMLDivElement>(null);
+  
+  const generateOrderPDF = async () => {
+    if (!selectedOrderForProcess || !orderDetailsRef.current) return;
+    
+    try {
+      setGeneratingPDF(true);
+      toast.info("Generating PDF...");
+      
+      const content = orderDetailsRef.current;
+      const canvas = await html2canvas(content, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      const imgWidth = 190;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Add company logo/header
+      pdf.setFillColor(255, 204, 0); // Yellow color for header
+      pdf.rect(0, 0, 210, 15, 'F');
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text("Yellow Brick Warehouse", 105, 10, { align: 'center' });
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`Order #${selectedOrderForProcess.id} - Picking List`, 105, 25, { align: 'center' });
+      
+      // Add date and time
+      const currentDate = new Date();
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on: ${currentDate.toLocaleDateString()} ${currentDate.toLocaleTimeString()}`, 105, 30, { align: 'center' });
+      
+      // Add customer info section
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text("Order Information:", 10, 40);
+      
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Customer: ${selectedOrderForProcess.customer || 'N/A'}`, 10, 47);
+      pdf.text(`Order Date: ${selectedOrderForProcess.date || 'N/A'}`, 10, 54);
+      pdf.text(`Status: ${selectedOrderForProcess.status || 'N/A'}`, 10, 61);
+      pdf.text(`Items: ${selectedOrderForProcess.items || 'N/A'}`, 10, 68);
+      pdf.text(`Total Value: ${selectedOrderForProcess.value || 'N/A'}`, 10, 75);
+      
+      // Add separator line
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(10, 80, 200, 80);
+      
+      // Add products table title
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text("Products and Locations:", 10, 87);
+      
+      // Add the table image
+      pdf.addImage(
+        canvas.toDataURL('image/png'),
+        'PNG',
+        10,
+        90,
+        imgWidth,
+        imgHeight
+      );
+      
+      // Add footer
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text("This document is for internal use only.", 105, 287, { align: 'center' });
+      
+      // Save the PDF
+      pdf.save(`order-${selectedOrderForProcess.id}-picking-list.pdf`);
+      
+      toast.success("PDF generated successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  // Generate PDF with packaging label
+  const generatePackagingLabelPDF = async () => {
+    if (!selectedOrderForPackaging || !packagingLabelRef.current) return;
+    
+    try {
+      setGeneratingPDF(true);
+      toast.info("Generating packaging label...");
+      
+      const content = packagingLabelRef.current;
+      const canvas = await html2canvas(content, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      const imgWidth = 190;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Add company logo/header
+      pdf.setFillColor(255, 204, 0); // Yellow color for header
+      pdf.rect(0, 0, 210, 15, 'F');
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text("Yellow Brick Warehouse", 105, 10, { align: 'center' });
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`Order #${selectedOrderForPackaging.id} - Packaging Label`, 105, 25, { align: 'center' });
+      
+      // Add date and time
+      const currentDate = new Date();
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on: ${currentDate.toLocaleDateString()} ${currentDate.toLocaleTimeString()}`, 105, 30, { align: 'center' });
+      
+      // Add the label content
+      pdf.addImage(
+        canvas.toDataURL('image/png'),
+        'PNG',
+        10,
+        35,
+        imgWidth,
+        imgHeight
+      );
+      
+      // Add footer
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text("This document is for internal use only.", 105, 287, { align: 'center' });
+      
+      // Save the PDF
+      pdf.save(`order-${selectedOrderForPackaging.id}-packaging-label.pdf`);
+      
+      toast.success("Packaging label generated successfully");
+    } catch (error) {
+      console.error("Error generating packaging label:", error);
+      toast.error("Failed to generate packaging label");
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
 
   // Fetch orders from API based on employee role
   const fetchOrders = async () => {
@@ -358,8 +523,8 @@ const EmployeeWorkflow = () => {
       // Processing employee selecting an order to process
       handleProcessOrder(order);
     } else if (hasRole(user, 'Packaging employee') && order.status === "Ready for Pickup") {
-      // Packaging employee marks order as packaged
-      processOrder(order, "Ready for Shipping");
+      // Packaging employee views packaging label and marks order as packaged
+      handlePackagingLabel(order);
     } else if (hasRole(user, 'Shipping employee') && order.status === "Ready for Shipping") {
       // Shipping employee marks order as shipped
       processOrder(order, "Shipped");
@@ -377,10 +542,34 @@ const EmployeeWorkflow = () => {
       
       await orderApi.updateOrder(Number(order.id), updatedOrder);
       toast.success(`Order status updated to ${newStatus}`);
+      
+      // Close the packaging dialog if it's open
+      if (showPackagingLabelDialog) {
+        setShowPackagingLabelDialog(false);
+        setSelectedOrderForPackaging(null);
+      }
+      
       fetchOrders();
     } catch (error) {
       console.error("Failed to process order:", error);
       toast.error("Failed to update order status");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle packaging label generation
+  const handlePackagingLabel = async (order: Order) => {
+    setIsProcessing(true);
+    
+    try {
+      // Get full order details
+      const orderResponse = await orderApi.getById(Number(order.id));
+      setSelectedOrderForPackaging(orderResponse.data);
+      setShowPackagingLabelDialog(true);
+    } catch (error) {
+      console.error("Failed to fetch order details:", error);
+      toast.error("Failed to load order details");
     } finally {
       setIsProcessing(false);
     }
@@ -531,7 +720,7 @@ const EmployeeWorkflow = () => {
                 {/* Pallet Locations */}
                 <div>
                   <h3 className="font-semibold text-sm mb-2">Product Locations</h3>
-                  <div className="border rounded-md">
+                  <div className="border rounded-md" ref={orderDetailsRef}>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -545,7 +734,7 @@ const EmployeeWorkflow = () => {
                           <TableHead className="text-right">Order Quantity</TableHead>
                         </TableRow>
                       </TableHeader>
-                                            <TableBody>
+                      <TableBody>
                         {selectedOrderForProcess.products && selectedOrderForProcess.products.length > 0 ? (
                           selectedOrderForProcess.products.map((productItem, index) => {
                             const productId = productItem.product.id;
@@ -606,13 +795,21 @@ const EmployeeWorkflow = () => {
                 {/* Actions */}
                 <div className="flex justify-end gap-2">
                   <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setShowOrderProcessingDialog(false);
-                      setSelectedOrderForProcess(null);
-                    }}
+                    variant="outline"
+                    onClick={generateOrderPDF}
+                    disabled={generatingPDF}
                   >
-                    Cancel
+                    {generatingPDF ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating PDF...
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print Order
+                      </>
+                    )}
                   </Button>
                   <Button 
                     onClick={() => completeOrderProcessing()}
@@ -629,6 +826,159 @@ const EmployeeWorkflow = () => {
                     )}
                   </Button>
                 </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Packaging Label Dialog - For packaging employees */}
+      <Dialog open={showPackagingLabelDialog} onOpenChange={setShowPackagingLabelDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedOrderForPackaging && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl flex items-center justify-between">
+                  <span>Order #{selectedOrderForPackaging.id} - Packaging Label</span>
+                  
+                </DialogTitle>
+                <DialogDescription>
+                  Packaging label for customer order
+                </DialogDescription>
+              </DialogHeader>
+
+              <div ref={packagingLabelRef} className="mt-6 space-y-6 p-4 border rounded-lg">
+                {/* Header with logo placeholder */}
+                <div className="flex justify-between items-center border-b pb-4">
+                  <div className="font-bold text-xl">Yellow Brick Warehouse</div>
+                  <div className="text-right">
+                    <div className="font-semibold">Order #{selectedOrderForPackaging.id}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Date: {selectedOrderForPackaging.date}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-semibold text-sm mb-2">Customer Information</h3>
+                    <p className="font-bold">{selectedOrderForPackaging.customer}</p>
+                  </div>
+
+                  {/* Shipping Information */}
+                  {selectedOrderForPackaging.shippingAddress && (
+                    <div>
+                      <h3 className="font-semibold text-sm mb-2">Ship To:</h3>
+                      <p className="font-bold">{selectedOrderForPackaging.customer}</p>
+                      <p>{selectedOrderForPackaging.shippingAddress.address}</p>
+                      <p>{selectedOrderForPackaging.shippingAddress.city}, {selectedOrderForPackaging.shippingAddress.state} {selectedOrderForPackaging.shippingAddress.zipCode}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Order Information */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-2">Order Information</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Value:</p>
+                      <p className="font-bold">{selectedOrderForPackaging.value}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Items:</p>
+                      <p className="font-bold">{selectedOrderForPackaging.items}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Shipment Method:</p>
+                      <p className="font-bold">{selectedOrderForPackaging.shipment}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Status:</p>
+                      <p className="font-bold">{selectedOrderForPackaging.status}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products */}
+                {selectedOrderForPackaging.products && selectedOrderForPackaging.products.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-semibold text-sm mb-2">Products</h3>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="text-right">Unit Price</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedOrderForPackaging.products.map((item, index) => (
+                            <TableRow key={index}>
+                              <TableCell>{item.product?.name || 'Unknown Product'}</TableCell>
+                              <TableCell className="text-right">{item.quantity}</TableCell>
+                              <TableCell className="text-right">
+                                ${item.product?.unitPrice?.toFixed(2) || '0.00'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ${(item.quantity * (item.product?.unitPrice || 0)).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Barcode placeholder */}
+                <div className="mt-6 flex justify-center">
+                  <div className="border-2 border-black p-4 text-center">
+                    <div className="text-xs mb-1">Scan to process:</div>
+                    <div className="font-mono font-bold tracking-widest">
+                      *{selectedOrderForPackaging.id}*
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 mt-6">
+                <Button 
+                  variant="outline"
+                  onClick={generatePackagingLabelPDF}
+                  disabled={generatingPDF}
+                >
+                  {generatingPDF ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Label...
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print Label
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={() => processOrder(selectedOrderForPackaging, "Ready for Shipping")}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Tags className="h-4 w-4 mr-2" />
+                      Complete Packaging
+                    </>
+                  )}
+                </Button>
               </div>
             </>
           )}

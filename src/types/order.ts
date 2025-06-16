@@ -1,4 +1,4 @@
-// Order type definitions
+
 
 export interface ShippingAddress {
   address: string;
@@ -15,6 +15,7 @@ export interface Order {
   value: string;
   status: string;
   shipment: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   products?: any[];
   shippingAddress?: ShippingAddress;
   payment?: {

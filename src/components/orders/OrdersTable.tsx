@@ -30,6 +30,7 @@ interface OrdersTableProps {
   handleEmployeeAction?: (order: Order) => void;
   isProcessing?: boolean;
   noOrdersMessage?: string;
+  formatDate: (dateString: string | undefined) => string;
 }
 
 const OrdersTable = ({
@@ -42,7 +43,8 @@ const OrdersTable = ({
   handleEditOrder,
   handleEmployeeAction,
   isProcessing = false,
-  noOrdersMessage = "No orders found matching your criteria."
+  noOrdersMessage = "No orders found matching your criteria.",
+  formatDate
 }: OrdersTableProps) => {
   const { user } = useAuth();
 
@@ -76,7 +78,7 @@ const OrdersTable = ({
               <TableRow key={order.id} className="hover-row">
                 <TableCell className="font-medium">{order.id}</TableCell>
                 <TableCell>{order.customer}</TableCell>
-                <TableCell>{order.date}</TableCell>
+                <TableCell>{formatDate(order.date)}</TableCell>
                 <TableCell className="text-right">{order.items}</TableCell>
                 <TableCell className="text-right">{order.value}</TableCell>
                 <TableCell>
