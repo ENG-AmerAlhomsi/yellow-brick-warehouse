@@ -7,7 +7,6 @@ An integrated warehouse management solution with a modern React-based frontend, 
 This project consists of three main components:
 
 ### 1. Frontend (Yellow Brick Warehouse)
-- **Location:** `/yellow-brick-warehouse`
 - **Tech Stack:**
   - React 18 with TypeScript
   - Vite for build tooling
@@ -18,7 +17,7 @@ This project consists of three main components:
   - Keycloak integration for authentication via @react-keycloak/web
 
 ### 2. Backend (Warehouse Management System)
-- **Location:** `/warehouse_management_system`
+- **Location:** `/backend`
 - **Tech Stack:**
   - Spring Boot 3.4.5
   - Java 21
@@ -31,7 +30,6 @@ This project consists of three main components:
   - CSV export functionality
 
 ### 3. Authentication (Keycloak)
-- **Location:** `/keycloak-26.2.4`
 - **Version:** 26.2.4
 - **Features:**
   - Identity and Access Management
@@ -71,20 +69,15 @@ npm run dev
 
 ### Backend Setup
 ```bash
-cd warehouse_management_system
+cd backend
 ./mvnw spring-boot:run
 ```
 
-### Keycloak Setup
-```bash
-cd keycloak-26.2.4
-bin/kc.sh start-dev
-# For Windows: bin\kc.bat start-dev
-```
+
 
 ## Default Ports
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8080
+- Frontend: http://localhost:8080
+- Backend API: http://localhost:8083
 - Keycloak: http://localhost:8081
 
 ## Architecture Overview
