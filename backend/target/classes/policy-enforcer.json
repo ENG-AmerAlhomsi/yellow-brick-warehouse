@@ -1,0 +1,32 @@
+{
+  "realm": "warehouse-dev",
+  "auth-server-url": "http://localhost:8081/",
+  "resource": "warehouse-backend",
+  "credentials": {
+    "secret": "ChOTlNSTtQGTmN8xMVyqS8f788MEBXbP"
+  },
+  "paths": [
+    {
+      "path": "/swagger-ui/*",
+      "enforcement-mode": "DISABLED"
+    },
+    {
+      "path": "/v3/api-docs/*",
+      "enforcement-mode": "DISABLED"
+    },
+    {
+      "path": "/products/get",
+      "enforcement-mode": "DISABLED"
+    },
+    {
+      "path": "/categories/get",
+      "enforcement-mode": "DISABLED"
+    },
+    {
+      "path": "/order/user/*",
+      "enforcement-mode": "DISABLED"
+    }
+
+
+  ]
+}
